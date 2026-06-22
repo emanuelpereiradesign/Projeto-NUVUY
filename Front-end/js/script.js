@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Captura hash do Supabase de confirmação de e-mail ou reset de senha
+  if (window.location.hash) {
+    const hashStr = window.location.hash.substring(1);
+    if (hashStr.includes('type=signup') || hashStr.includes('type=invite') || hashStr.includes('access_token=')) {
+      localStorage.setItem('nuvuy_welcome_message', '🎉 Conta confirmada e ativada com sucesso! Bem-vindo ao Nuvuy.');
+    } else if (hashStr.includes('type=recovery')) {
+      localStorage.setItem('nuvuy_welcome_message', '🔐 Sessão iniciada para redefinição. Por favor, atualize sua senha nas configurações.');
+    }
+  }
+
   // Variável para conter o banco de dados de leads na página de leads inteligentes
   let leadsDatabase = [];
 
@@ -938,6 +948,18 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       toast.remove();
     }, 300);
+  }
+
+  // Verifica se há alguma mensagem de boas-vindas pendente no localStorage
+  const isLoginPage = window.location.pathname.includes('login.html');
+  if (!isLoginPage) {
+    const pendingMessage = localStorage.getItem('nuvuy_welcome_message');
+    if (pendingMessage) {
+      localStorage.removeItem('nuvuy_welcome_message');
+      setTimeout(() => {
+        showToast(pendingMessage, 'success');
+      }, 1500);
+    }
   }
 
   // --- Modal Logout Logic ---
