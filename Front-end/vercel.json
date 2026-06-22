@@ -1,0 +1,10 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/configuracoes", "destination": "/configuracoes.html" },
+    { "source": "/planos", "destination": "/planos.html" },
+    { "source": "/leads-inteligentes", "destination": "/leads-inteligentes.html" }
+  ]
+}

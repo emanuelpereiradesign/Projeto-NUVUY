@@ -1,4 +1,30 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Função auxiliar para resolver URLs dinamicamente (Local vs Web/Vercel)
+  const getPageUrl = (pageName) => {
+    const isLocalFile = window.location.protocol === 'file:';
+    if (isLocalFile) {
+      if (pageName === 'dashboard') return 'index.html';
+      return `${pageName}.html`;
+    }
+    return `/${pageName}`;
+  };
+
+  // Ajusta dinamicamente os links para URLs amigáveis se estiver rodando via HTTP/HTTPS (Vercel)
+  const isLocalFile = window.location.protocol === 'file:';
+  if (!isLocalFile) {
+    document.querySelectorAll('a[href]').forEach(link => {
+      const href = link.getAttribute('href');
+      if (href) {
+        if (href === 'index.html') {
+          link.setAttribute('href', '/dashboard');
+        } else if (href.endsWith('.html') && !href.startsWith('http') && !href.startsWith('//')) {
+          const cleanPath = '/' + href.replace('.html', '');
+          link.setAttribute('href', cleanPath);
+        }
+      }
+    });
+  }
+
   // Captura hash do Supabase de confirmação de e-mail ou reset de senha
   if (window.location.hash) {
     const hashStr = window.location.hash.substring(1);
@@ -180,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Session check and redirect (Back-end or direct Supabase client fallback)
   const checkSession = async () => {
-    const isLoginPage = window.location.pathname.includes('login.html');
+    const isLoginPage = window.location.pathname.includes('login.html') || window.location.pathname.endsWith('/login');
     
     // 1. Tenta verificar se o Back-end está ativo e responde online
     let backendActive = false;
@@ -197,9 +223,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (backendActive) {
       const token = localStorage.getItem('nuvuy_access_token');
       if (!token && !isLoginPage) {
-        window.location.href = 'login.html';
+        window.location.href = getPageUrl('login');
       } else if (token && isLoginPage) {
-        window.location.href = 'index.html';
+        window.location.href = getPageUrl('dashboard');
       }
       return;
     }
@@ -208,9 +234,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.isSupabaseConfigured && window.supabaseClient) {
       const { data: { session } } = await window.supabaseClient.auth.getSession();
       if (!session && !isLoginPage) {
-        window.location.href = 'login.html';
+        window.location.href = getPageUrl('login');
       } else if (session && isLoginPage) {
-        window.location.href = 'index.html';
+        window.location.href = getPageUrl('dashboard');
       }
     }
   };
@@ -275,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('nuvuy_user_name');
       localStorage.removeItem('nuvuy_access_token');
       localStorage.removeItem('nuvuy_refresh_token');
-      window.location.href = 'login.html';
+      window.location.href = getPageUrl('login');
     }
   };
 
@@ -951,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Verifica se há alguma mensagem de boas-vindas pendente no localStorage
-  const isLoginPage = window.location.pathname.includes('login.html');
+  const isLoginPage = window.location.pathname.includes('login.html') || window.location.pathname.endsWith('/login');
   if (!isLoginPage) {
     const pendingMessage = localStorage.getItem('nuvuy_welcome_message');
     if (pendingMessage) {
@@ -1001,12 +1027,12 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('nuvuy_user_name');
       localStorage.removeItem('nuvuy_access_token');
       localStorage.removeItem('nuvuy_refresh_token');
-      window.location.href = 'login.html';
+      window.location.href = getPageUrl('login');
     });
   }
 
   // Direct logout handler for pages without modal (e.g. configuracoes.html)
-  const directLogoutBtn = document.querySelector('a.btn-logout[href="login.html"]');
+  const directLogoutBtn = document.querySelector('a.btn-logout');
   if (directLogoutBtn) {
     directLogoutBtn.addEventListener('click', async (e) => {
       const logoutModal = document.getElementById('modal-logout');
@@ -1022,7 +1048,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('nuvuy_user_name');
         localStorage.removeItem('nuvuy_access_token');
         localStorage.removeItem('nuvuy_refresh_token');
-        window.location.href = 'login.html';
+        window.location.href = getPageUrl('login');
       }
     });
   }
@@ -1161,7 +1187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Bem-vindo de volta, ${fullName}! Redirecionando...`, 'success');
         
         setTimeout(() => {
-          window.location.href = 'index.html';
+          window.location.href = getPageUrl('dashboard');
         }, 1000);
       } catch (error) {
         const errorMsg = error.message || '';
@@ -1175,7 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`[SIMULAÇÃO] Bem-vindo de volta! Redirecionando...`, 'success');
             
             setTimeout(() => {
-              window.location.href = 'index.html';
+              window.location.href = getPageUrl('dashboard');
             }, 1000);
           }, 1500);
         } else {
@@ -1217,7 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('nuvuy_refresh_token', data.session.refresh_token);
           showToast(`Conta criada com sucesso, ${name}! Redirecionando...`, 'success');
           setTimeout(() => {
-            window.location.href = 'index.html';
+            window.location.href = getPageUrl('dashboard');
           }, 1200);
         } else {
           showToast(`Cadastro efetuado! Verifique seu e-mail para confirmar a conta.`, 'success');
@@ -1242,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`[SIMULAÇÃO] Conta criada com sucesso, ${name}! Redirecionando...`, 'success');
             
             setTimeout(() => {
-              window.location.href = 'index.html';
+              window.location.href = getPageUrl('dashboard');
             }, 1200);
           }, 1500);
         } else {

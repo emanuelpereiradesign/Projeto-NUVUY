@@ -1,0 +1,10 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/dashboard", "destination": "/Front-end/index.html" },
+    { "source": "/login", "destination": "/Front-end/login.html" },
+    { "source": "/configuracoes", "destination": "/Front-end/configuracoes.html" },
+    { "source": "/planos", "destination": "/Front-end/planos.html" },
+    { "source": "/leads-inteligentes", "destination": "/Front-end/leads-inteligentes.html" }
+  ]
+}
