@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nuvuy - Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-wrapper">
+  
+  <div class="login-container">
+    <div class="login-header">
+      <img src="assets/LOGO - NUVUY - VETOR.svg" alt="Nuvuy Logo" class="login-logo">
+      <h1 class="login-title">Acessar sua conta</h1>
+      <p class="login-subtitle">É muito bom ter você de volta</p>
+    </div>
+    
+    <div class="login-card">
+      <!-- Formulário de Login -->
+      <form id="form-login">
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" placeholder="Digite seu email..." required autocomplete="email">
+        </div>
+        
+        <div class="form-group">
+          <label for="login-senha">Senha</label>
+          <input type="password" id="login-senha" placeholder="Digite seu email..." required autocomplete="current-password">
+        </div>
+        
+        <div class="forgot-password-container">
+          <a href="#" class="forgot-password" id="btn-forgot-password">Esqueceu a senha?</a>
+        </div>
+        
+        <button type="submit" class="btn-entrar" id="btn-submit-login">
+          <span>Entrar</span>
+        </button>
+        
+        <div class="login-footer">
+          <span>Primeira vez no Nuvuy? <a href="#" id="btn-show-signup">Criar conta</a></span>
+        </div>
+      </form>
+
+      <!-- Formulário de Cadastro (Escondido inicialmente) -->
+      <form id="form-signup" class="hidden">
+        <div class="form-group">
+          <label for="signup-name">Nome Completo</label>
+          <input type="text" id="signup-name" placeholder="Digite seu nome completo..." required autocomplete="name">
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" placeholder="Digite seu email..." required autocomplete="email">
+        </div>
+        
+        <div class="form-group">
+          <label for="signup-senha">Senha</label>
+          <input type="password" id="signup-senha" placeholder="Crie uma senha forte..." required autocomplete="new-password">
+        </div>
+        
+        <button type="submit" class="btn-entrar" id="btn-submit-signup">
+          <span>Criar minha conta</span>
+        </button>
+        
+        <div class="login-footer">
+          <span>Já tem uma conta? <a href="#" id="btn-show-login">Fazer login</a></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Container de Toasts/Notificações -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Supabase CDN e Configuração -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

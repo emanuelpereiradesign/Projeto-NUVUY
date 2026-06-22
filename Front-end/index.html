@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nuvuy - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Poppins:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="dashboard">
+    <aside class="sidebar">
+      <div class="logo">
+        <svg viewBox="0 0 133 61" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15.4811 30.873C16.6583 30.873 17.3416 32.205 16.655 33.1612L15.0918 35.3378C14.8204 35.7159 14.3834 35.94 13.918 35.94H1.4477C0.281822 35.94 -0.404183 34.6305 0.259575 33.672L23.1447 0.625137C23.9512 -0.539587 25.778 0.03118 25.778 1.44792V21.4356C25.778 21.7713 25.6611 22.0966 25.4473 22.3556L23.486 24.7317C22.6234 25.7767 20.9262 25.1668 20.9262 23.8117V16.9046C20.9262 15.4831 19.0894 14.9156 18.2876 16.0895L9.73418 28.6127C9.079 29.5719 9.76594 30.873 10.9276 30.873H15.4811Z" fill="white"/>
+          <path d="M18.9541 35.5515C19.8041 34.477 21.5327 35.0781 21.5327 36.4482V43.2389C21.5327 44.6587 23.366 45.2274 24.1694 44.0568L32.9174 31.3119C33.5756 30.3529 32.889 29.0489 31.7259 29.0489H26.9412C25.7336 29.0489 25.0586 27.6557 25.8069 26.708L27.3656 24.7341C27.6397 24.387 28.0576 24.1845 28.4998 24.1845H41.2134C42.3793 24.1845 43.0653 25.494 42.4015 26.4525L19.5164 59.4994C18.7099 60.6641 16.8831 60.0933 16.8831 58.6766V38.672C16.8831 38.3466 16.993 38.0307 17.1949 37.7754L18.9541 35.5515Z" fill="white"/>
+          <path d="M31.0642 20.1309C30.266 20.1309 29.619 19.4838 29.619 18.6857V15.589C29.619 15.1311 29.8359 14.7004 30.2037 14.4278L38.4337 8.32901C39.6709 7.41223 41.2928 8.80809 40.5705 10.168L35.6869 19.3635C35.4361 19.8357 34.9452 20.1309 34.4105 20.1309H31.0642Z" fill="white"/>
+          <path d="M58.531 21.6268C56.0487 21.5454 54.8685 29.8877 54.4616 32.9398C54.0546 36.2767 53.8512 39.7357 52.9966 42.9506C52.9559 43.1133 52.8745 43.1947 52.7524 43.2761C52.3048 45.4736 47.7063 45.3515 47.7063 42.9506C47.6656 35.8698 47.7063 28.789 47.5843 21.7082C47.5029 19.1851 52.5896 19.1851 52.6303 21.7082C52.7117 24.5568 52.7117 27.4054 52.7524 30.254C53.2001 27.3647 53.6477 23.8243 55.601 21.464C56.3742 20.5281 57.2695 19.7956 58.4903 19.6328C59.9553 19.47 61.461 19.9583 62.4783 20.9757C65.0421 23.5801 65.3269 27.2019 65.6118 30.6609C65.8967 34.771 65.856 38.8811 65.7746 42.9913C65.7339 45.5143 60.6064 45.5143 60.6878 42.9913C60.7285 38.7184 60.8099 34.4455 60.4843 30.2133C60.4029 29.2773 60.0367 21.6268 58.531 21.6268Z" fill="white"/>
+          <path d="M82.2681 35.3001C82.2681 37.9045 82.3495 40.4682 82.1867 43.0727C82.0647 45.555 77.3848 45.5143 77.222 43.0727C77.222 42.625 77.1814 42.1774 77.1814 41.7297C76.4895 43.1947 75.228 44.7004 72.8271 44.8225C70.5482 44.9039 69.2053 43.9679 68.4321 42.3809C67.8217 41.2007 67.6182 39.8578 67.4554 38.5556C67.0078 34.8931 67.1706 31.1086 67.252 27.4054C67.3333 24.8416 72.4201 24.8416 72.3387 27.4054C72.2573 30.8644 72.1353 34.3641 72.5015 37.8231C72.6236 39.1253 72.9898 42.5029 74.4141 42.2181C75.3501 42.0553 75.8384 39.1253 76.0826 37.7417C76.7337 34.2827 76.6523 30.7423 77.1407 27.2833C77.1407 27.2019 77.1407 27.1612 77.1814 27.0798C77.4662 24.7603 82.2681 24.8416 82.2681 27.2833C82.2681 29.9691 82.2681 32.6549 82.2681 35.3001Z" fill="white"/>
+          <path d="M99.2042 26.3473C99.2856 29.8063 98.838 33.3467 98.0241 36.7244C97.4951 38.9218 96.2742 44.7004 91.4723 44.8632C87.7692 44.9853 85.6124 40.1427 84.9206 37.701C84.0253 34.3234 83.6183 30.783 83.3742 27.2833C83.2521 26.0218 84.8799 25.3707 85.8972 25.3707C87.0367 25.3707 88.3796 26.0218 88.461 27.2833C88.6644 30.5795 89.0307 33.8758 89.9666 37.0499C90.2922 38.1487 91.513 42.2995 93.0187 42.3402C94.7686 42.4215 95.908 36.6837 96.3149 34.4862C96.8033 31.8004 97.0067 29.0738 97.1695 26.3473C97.2509 25.3707 99.2042 25.33 99.2042 26.3473Z" fill="white"/>
+          <path d="M115.332 35.3001C115.332 37.9045 115.414 40.4682 115.251 43.0727C115.129 45.555 110.449 45.5143 110.286 43.0727C110.286 42.625 110.245 42.1774 110.245 41.7297C109.554 43.1947 108.292 44.7004 105.891 44.8225C103.612 44.9039 102.269 43.9679 101.496 42.3809C100.886 41.2007 100.682 39.8578 100.519 38.5556C100.072 34.8931 100.235 31.1086 100.316 27.4054C100.397 24.8416 105.484 24.8416 105.403 27.4054C105.321 30.8644 105.199 34.3641 105.566 37.8231C105.688 39.1253 106.054 42.5029 107.478 42.2181C108.414 42.0553 108.902 39.1253 109.147 37.7417C109.798 34.2827 109.716 30.7423 110.205 27.2833C110.205 27.2019 110.205 27.1612 110.245 27.0798C110.53 24.7603 115.332 24.8416 115.332 27.2833C115.332 29.9691 115.332 32.6549 115.332 35.3001Z" fill="white"/>
+          <path d="M132.228 38.3521C132.268 41.0786 132.187 43.7645 131.699 46.4096C131.251 48.6885 129.298 54.1008 122.542 53.1648C119.653 52.7986 117.415 50.3569 117.903 47.3862C118.107 46.3689 120.141 46.2875 120.101 47.3862C120.019 48.6885 120.345 50.1941 121.484 50.9673C121.932 51.2522 122.42 51.3336 122.949 51.2929C126.571 51.0487 126.978 44.0086 127.019 43.4796C127.059 42.7471 127.1 41.9739 127.141 41.2007C126.49 42.8285 125.228 44.7004 122.542 44.8225C120.263 44.9039 118.921 43.9679 118.147 42.3809C117.537 41.2007 117.333 39.8578 117.171 38.5556C116.723 34.8931 116.886 31.1086 116.967 27.4054C117.049 24.8416 122.135 24.8416 122.054 27.4054C121.973 30.8644 121.851 34.3641 122.217 37.8231C122.339 39.1253 122.705 42.5029 124.129 42.2181C125.065 42.0553 125.554 39.1253 125.798 37.7417C126.449 34.2827 126.368 30.7423 126.856 27.2833C126.856 27.2019 126.856 27.1612 126.897 27.0798C126.937 26.9984 126.937 26.9577 126.937 26.8764C127.507 25.0044 131.047 25.1672 131.658 26.8764C132.024 27.8937 131.902 29.1552 131.943 30.2133C131.983 31.1492 132.024 32.0852 132.065 33.0619C132.146 34.8117 132.228 36.6023 132.228 38.3521Z" fill="white"/>
+        </svg>
+      </div>
+      <nav class="nav-menu">
+        <a class="nav-item active" href="index.html">
+          <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
+            <path d="M0 16.875V5.625L7.5 0L15 5.625V16.875H9.375V10.3125H5.625V16.875H0Z" fill="white"/>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" href="leads-inteligentes.html">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M7.5 0C8.49456 0 9.44839 0.395088 10.1517 1.09835C10.8549 1.80161 11.25 2.75544 11.25 3.75C11.25 4.74456 10.8549 5.69839 10.1517 6.40165C9.44839 7.10491 8.49456 7.5 7.5 7.5C6.50544 7.5 5.55161 7.10491 4.84835 6.40165C4.14509 5.69839 3.75 4.74456 3.75 3.75C3.75 2.75544 4.14509 1.80161 4.84835 1.09835C5.55161 0.395088 6.50544 0 7.5 0ZM7.5 9.375C11.6438 9.375 15 11.0531 15 13.125V15H0V13.125C0 11.0531 3.35625 9.375 7.5 9.375Z" fill="white"/>
+          </svg>
+          <span>Leads inteligentes</span>
+        </a>
+        <a class="nav-item" href="configuracoes.html">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" fill="white"/>
+          </svg>
+          <span>Configurações</span>
+        </a>
+        <a class="nav-item" href="planos.html">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          <span>Planos</span>
+        </a>
+      </nav>
+      <div class="user-section">
+        <div class="user-avatar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D3D3D3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <div class="user-info" style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="user-name" style="font-size: 13px; font-family: 'Poppins', sans-serif; font-weight: 500; color: var(--text-primary);">Emanuel.P (admin)</span>
+          <button class="btn-logout" title="Sair da Conta">Sair</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="top-bar">
+        <div class="search-bar">
+          <svg width="19" height="19" viewBox="0 0 19 19" fill="none">
+            <path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M11.9591 13.1161C10.4889 14.2909 8.62461 14.8581 6.74925 14.7012C4.87389 14.5443 3.12977 13.6753 1.87512 12.2726C0.620462 10.8698 -0.0494924 9.03991 0.00285155 7.15862C0.0551955 5.27733 0.825864 3.48749 2.15658 2.1567C3.48729 0.825912 5.27703 0.0551987 7.15821 0.00285172C9.03939 -0.0494953 10.8692 0.620498 12.2719 1.87523C13.6745 3.12995 14.5435 4.87417 14.7004 6.74964C14.8573 8.62511 14.2901 10.4895 13.1154 11.9598L18.7396 17.5833C18.82 17.6582 18.8845 17.7485 18.9292 17.8489C18.9739 17.9492 18.9979 18.0576 18.9999 18.1674C19.0018 18.2773 18.9816 18.3864 18.9405 18.4883C18.8993 18.5901 18.8381 18.6827 18.7604 18.7604C18.6827 18.8381 18.5902 18.8993 18.4883 18.9405C18.3864 18.9816 18.2773 19.0018 18.1675 18.9999C18.0576 18.9979 17.9493 18.9739 17.8489 18.9292C17.7486 18.8845 17.6582 18.82 17.5833 18.7396L11.9591 13.1161Z" fill="white"/>
+          </svg>
+          <input type="text" placeholder="Buscar leads ou usar o comando (CTRL + k)...">
+        </div>
+        <div class="top-actions">
+          <button class="btn-icon-top" id="btn-clear-all" title="Limpar Tudo">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <path d="M1 5H21M9 10V15M13 10V15M3 5H19L17.42 19.22C17.3658 19.7094 17.1331 20.1616 16.7663 20.49C16.3994 20.8184 15.9244 21 15.432 21H6.568C6.07564 21 5.60056 20.8184 5.23375 20.49C4.86693 20.1616 4.63416 19.7094 4.58 19.22L3 5ZM6.345 2.147C6.50675 1.80397 6.76271 1.514 7.083 1.31091C7.4033 1.10782 7.77474 0.999996 8.154 1H13.846C14.2254 0.999806 14.5971 1.10755 14.9176 1.31064C15.2381 1.51374 15.4942 1.80381 15.656 2.147L17 5H5L6.345 2.147Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button class="btn-icon-top" id="btn-refresh" title="Recarregar">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M19.2952 12C19.3881 11.9999 19.4802 12.0181 19.566 12.0538C19.6519 12.0894 19.7298 12.1417 19.7954 12.2076C19.8609 12.2735 19.9128 12.3518 19.9479 12.4378C19.9831 12.5239 20.0008 12.616 20.0002 12.709V15.913C20.0008 16.0055 19.9832 16.0973 19.9484 16.183C19.9136 16.2688 19.8622 16.3468 19.7972 16.4126C19.7321 16.4785 19.6548 16.5309 19.5695 16.5668C19.4842 16.6027 19.3927 16.6215 19.3002 16.622C19.2076 16.6215 19.1161 16.6027 19.0308 16.5668C18.9455 16.5309 18.8682 16.4785 18.8032 16.4126C18.7382 16.3468 18.6868 16.2688 18.6519 16.183C18.6171 16.0973 18.5995 16.0055 18.6002 15.913V14.788C16.7792 17.844 13.3992 20 9.75716 20C5.34716 20 1.65116 17.279 0.0481631 13.085C-0.0196864 12.9103 -0.0157122 12.7159 0.0592193 12.5441C0.134151 12.3723 0.273961 12.2371 0.448163 12.168C0.808163 12.027 1.21416 12.208 1.35416 12.573C2.75416 16.235 5.94216 18.583 9.75716 18.583C13.1282 18.583 16.2772 16.401 17.7442 13.429L16.2732 13.439C16.1806 13.4391 16.089 13.421 16.0034 13.3857C15.9179 13.3504 15.8402 13.2985 15.7747 13.2332C15.7092 13.1678 15.6573 13.0901 15.6218 13.0046C15.5864 12.9192 15.5682 12.8275 15.5682 12.735C15.5658 12.5482 15.6376 12.3681 15.7679 12.2342C15.8982 12.1003 16.0764 12.0236 16.2632 12.021L19.2952 12ZM10.2452 0C14.6532 0 18.3502 2.721 19.9532 6.915C20.021 7.0897 20.017 7.28414 19.9421 7.45592C19.8672 7.6277 19.7274 7.76289 19.5532 7.832C19.4671 7.86555 19.3753 7.88167 19.283 7.87943C19.1907 7.87719 19.0998 7.85663 19.0155 7.81895C18.9312 7.78127 18.8552 7.72722 18.792 7.65993C18.7288 7.59265 18.6795 7.51347 18.6472 7.427C17.2472 3.765 14.0592 1.417 10.2442 1.417C6.87316 1.417 3.72416 3.599 2.25716 6.571L3.72816 6.561C3.8207 6.56087 3.91235 6.57898 3.99788 6.6143C4.08341 6.64962 4.16113 6.70146 4.22661 6.76684C4.29209 6.83223 4.34404 6.90988 4.37948 6.99536C4.41492 7.08084 4.43316 7.17246 4.43316 7.265C4.43557 7.45181 4.36372 7.63194 4.23341 7.76581C4.1031 7.89969 3.92497 7.97637 3.73816 7.979L0.705163 8C0.612206 8.00013 0.520143 7.98186 0.434286 7.98186H0.434286" fill="white"/>
+            </svg>
+          </button>
+          <button class="btn-new-capture">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M5.81481 1V6M5.81481 11V6M5.81481 6H11M5.81481 6H1" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Nova Captura
+          </button>
+        </div>
+      </div>
+
+      <div class="header-row">
+        <div class="page-header">
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle">Inteligência de Prospecção em tempo real e métricas SDR.</p>
+        </div>
+        <div class="filter-tabs">
+          <div class="filter-tab active">TODOS</div>
+          <div class="filter-tab">ALTO(QUENTE)</div>
+          <div class="filter-tab">MÉDIA(MORNO)</div>
+          <div class="filter-tab">BAIXO(FRIO)</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">TOTAL DE LEADS</div>
+          <div class="stat-value" id="stat-total-leads">62</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">
+            <span class="dot-quente"></span> LEADS QUENTES
+          </div>
+          <div class="stat-value" id="stat-quente-leads">39</div>
+          <div class="stat-sub">ALTO POTENCIAL DE CONVERSÃO</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">
+            <span class="dot-morno"></span> LEADS MORNO
+          </div>
+          <div class="stat-value" id="stat-morno-leads">18</div>
+          <div class="stat-sub">MÉDIO POTENCIAL DE CONVERSÃO</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">
+            <span class="dot-frio"></span> LEADS FRIOS
+          </div>
+          <div class="stat-value" id="stat-frio-leads">5</div>
+          <div class="stat-sub">BAIXO POTENCIAL DE CONVERSÃO</div>
+        </div>
+      </div>
+
+      <div class="leads-headers">
+        <div class="column-header">
+          <div class="header-content">
+            <span class="dot-quente"></span>
+            <span class="header-text">ALTO CONVERSÃO</span>
+            <button class="btn-clear-column" data-column="quente" title="Limpar coluna">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 3.5H13M5 6V10M9 6V10M2.2 3.5H11.8L10.8 12.1C10.76 12.4 10.5 12.6 10.2 12.6H3.8C3.5 12.6 3.24 12.4 3.2 12.1L2.2 3.5ZM4.6 2.1C4.7 1.9 4.9 1.8 5.1 1.8H8.9C9.1 1.8 9.3 1.9 9.4 2.1L10 3.5H4L4.6 2.1Z" stroke="#8E8E93" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="column-header">
+          <div class="header-content">
+            <span class="dot-morno"></span>
+            <span class="header-text">MÉDIA CONVERSÃO</span>
+            <button class="btn-clear-column" data-column="morno" title="Limpar coluna">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 3.5H13M5 6V10M9 6V10M2.2 3.5H11.8L10.8 12.1C10.76 12.4 10.5 12.6 10.2 12.6H3.8C3.5 12.6 3.24 12.4 3.2 12.1L2.2 3.5ZM4.6 2.1C4.7 1.9 4.9 1.8 5.1 1.8H8.9C9.1 1.8 9.3 1.9 9.4 2.1L10 3.5H4L4.6 2.1Z" stroke="#8E8E93" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="column-header">
+          <div class="header-content">
+            <span class="dot-frio"></span>
+            <span class="header-text">BAIXA CONVERSÃO</span>
+            <button class="btn-clear-column" data-column="frio" title="Limpar coluna">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 3.5H13M5 6V10M9 6V10M2.2 3.5H11.8L10.8 12.1C10.76 12.4 10.5 12.6 10.2 12.6H3.8C3.5 12.6 3.24 12.4 3.2 12.1L2.2 3.5ZM4.6 2.1C4.7 1.9 4.9 1.8 5.1 1.8H8.9C9.1 1.8 9.3 1.9 9.4 2.1L10 3.5H4L4.6 2.1Z" stroke="#8E8E93" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+
+      <div class="leads-grid">
+        <!-- Alta conversão -->
+        <div class="lead-column" data-column="quente">
+          <div class="lead-card">
+            <div class="lead-card-header">
+              <span class="lead-title">TÍTULO 1</span>
+              <span class="lead-percent">75%</span>
+            </div>
+            <div class="lead-tags">
+              <span class="lead-tag tag-quente">QUENTE</span>
+              <span class="lead-tag tag-category">SUPER MERCADO</span>
+            </div>
+            <div class="lead-rating-container">
+              <span class="rating-label">AVALIAÇÃO(MAPS)</span>
+              <div class="rating-value">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M5.53271 0.690984C5.83206 -0.230327 7.13547 -0.230328 7.43482 0.690983L8.27988 3.2918C8.41375 3.70382 8.79771 3.98278 9.23093 3.98278H11.9656C12.9343 3.98278 13.3371 5.22239 12.5534 5.7918L10.341 7.39919C9.9905 7.65383 9.84385 8.1052 9.97772 8.51722L10.8228 11.118C11.1221 12.0393 10.0676 12.8055 9.28393 12.2361L7.07155 10.6287C6.72106 10.374 6.24647 10.374 5.89598 10.6287L3.6836 12.2361C2.89988 12.8055 1.8454 12.0393 2.14475 11.118L2.98981 8.51722C3.12368 8.1052 2.97703 7.65383 2.62654 7.39919L0.414156 5.7918C-0.369558 5.22239 0.033217 3.98278 1.00194 3.98278H3.7366C4.16982 3.98278 4.55378 3.70382 4.68765 3.2918L5.53271 0.690984Z" fill="#FBFF00"/>
+                </svg>
+                <span class="rating-number">4.7</span>
+              </div>
+            </div>
+            <div class="lead-card-actions">
+              <div class="action-icons">
+                <button class="btn-action-icon" title="Ligar para lead">
+                  <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                    <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="btn-action-icon" title="Ver website">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="7" cy="7" r="6"/>
+                    <line x1="1" y1="7" x2="13" y2="7"/>
+                    <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
+                  </svg>
+                </button>
+              </div>
+              <button class="btn-capture">EFETUAR CAPTAÇÃO</button>
+            </div>
+          </div>
+          <div class="lead-card-placeholder"></div>
+        </div>
+
+        <!-- Média conversão -->
+        <div class="lead-column" data-column="morno">
+          <div class="lead-card">
+            <div class="lead-card-header">
+              <span class="lead-title">TÍTULO 2</span>
+              <span class="lead-percent">50%</span>
+            </div>
+            <div class="lead-tags">
+              <span class="lead-tag tag-morno">MORNO</span>
+              <span class="lead-tag tag-category">LOJA DE ROUPAS</span>
+            </div>
+            <div class="lead-rating-container">
+              <span class="rating-label">AVALIAÇÃO(MAPS)</span>
+              <div class="rating-value">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M5.53271 0.690984C5.83206 -0.230327 7.13547 -0.230328 7.43482 0.690983L8.27988 3.2918C8.41375 3.70382 8.79771 3.98278 9.23093 3.98278H11.9656C12.9343 3.98278 13.3371 5.22239 12.5534 5.7918L10.341 7.39919C9.9905 7.65383 9.84385 8.1052 9.97772 8.51722L10.8228 11.118C11.1221 12.0393 10.0676 12.8055 9.28393 12.2361L7.07155 10.6287C6.72106 10.374 6.24647 10.374 5.89598 10.6287L3.6836 12.2361C2.89988 12.8055 1.8454 12.0393 2.14475 11.118L2.98981 8.51722C3.12368 8.1052 2.97703 7.65383 2.62654 7.39919L0.414156 5.7918C-0.369558 5.22239 0.033217 3.98278 1.00194 3.98278H3.7366C4.16982 3.98278 4.55378 3.70382 4.68765 3.2918L5.53271 0.690984Z" fill="#FBFF00"/>
+                </svg>
+                <span class="rating-number">3.4</span>
+              </div>
+            </div>
+            <div class="lead-card-actions">
+              <div class="action-icons">
+                <button class="btn-action-icon" title="Ligar para lead">
+                  <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                    <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="btn-action-icon" title="Ver website">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="7" cy="7" r="6"/>
+                    <line x1="1" y1="7" x2="13" y2="7"/>
+                    <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
+                  </svg>
+                </button>
+              </div>
+              <button class="btn-capture">EFETUAR CAPTAÇÃO</button>
+            </div>
+          </div>
+          <div class="lead-card-placeholder"></div>
+        </div>
+
+        <!-- Baixa conversão -->
+        <div class="lead-column" data-column="frio">
+          <div class="lead-card">
+            <div class="lead-card-header">
+              <span class="lead-title">TÍTULO 3</span>
+              <span class="lead-percent">32%</span>
+            </div>
+            <div class="lead-tags">
+              <span class="lead-tag tag-frio">FRIO</span>
+              <span class="lead-tag tag-category">FARMÁCIA</span>
+            </div>
+            <div class="lead-rating-container">
+              <span class="rating-label">AVALIAÇÃO(MAPS)</span>
+              <div class="rating-value">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M5.53271 0.690984C5.83206 -0.230327 7.13547 -0.230328 7.43482 0.690983L8.27988 3.2918C8.41375 3.70382 8.79771 3.98278 9.23093 3.98278H11.9656C12.9343 3.98278 13.3371 5.22239 12.5534 5.7918L10.341 7.39919C9.9905 7.65383 9.84385 8.1052 9.97772 8.51722L10.8228 11.118C11.1221 12.0393 10.0676 12.8055 9.28393 12.2361L7.07155 10.6287C6.72106 10.374 6.24647 10.374 5.89598 10.6287L3.6836 12.2361C2.89988 12.8055 1.8454 12.0393 2.14475 11.118L2.98981 8.51722C3.12368 8.1052 2.97703 7.65383 2.62654 7.39919L0.414156 5.7918C-0.369558 5.22239 0.033217 3.98278 1.00194 3.98278H3.7366C4.16982 3.98278 4.55378 3.70382 4.68765 3.2918L5.53271 0.690984Z" fill="#FBFF00"/>
+                </svg>
+                <span class="rating-number">5.0</span>
+              </div>
+            </div>
+            <div class="lead-card-actions">
+              <div class="action-icons">
+                <button class="btn-action-icon" title="Ligar para lead">
+                  <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                    <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="btn-action-icon" title="Ver website">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="7" cy="7" r="6"/>
+                    <line x1="1" y1="7" x2="13" y2="7"/>
+                    <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
+                  </svg>
+                </button>
+              </div>
+              <button class="btn-capture">EFETUAR CAPTAÇÃO</button>
+            </div>
+          </div>
+          <div class="lead-card-placeholder"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <!-- Modal de Nova Captura -->
+  <div class="modal-overlay" id="modal-captura">
+    <div class="modal-container">
+      <button class="modal-close" id="btn-close-modal" aria-label="Fechar modal">&times;</button>
+      <form id="form-captura">
+        <div class="modal-form-group">
+          <label for="input-nicho">NICHO PARA EFETUAR A BUSCA</label>
+          <input type="text" id="input-nicho" class="modal-input" placeholder="Exemplo: Loja de Roupas..." required autocomplete="off">
+        </div>
+        
+        <div class="modal-form-row">
+          <div class="modal-form-group">
+            <label for="input-regiao">REGIÃO DE BUSCA(MAPS)</label>
+            <input type="text" id="input-regiao" class="modal-input" placeholder="Exemplo: SÃO PAULO/SP" required autocomplete="off">
+          </div>
+          <div class="modal-form-group">
+            <label for="input-quantidade">QUANTIDADE DE LEAS</label>
+            <input type="number" id="input-quantidade" class="modal-input" placeholder="Exemplo: 10" min="1" max="100" required autocomplete="off">
+          </div>
+        </div>
+
+        <div class="modal-form-group">
+          <label>SELECIONAR FONTE DE BUSCA</label>
+          <div class="source-toggles">
+            <button type="button" class="btn-source active" data-source="google-maps">GOOGLE MAPS</button>
+            <button type="button" class="btn-source" data-source="instagram">INSTAGRAM</button>
+          </div>
+          <p class="form-reminder">Lembrete: Ao ser selecionado as duas formas de busca, o sistema irá passar mais tempo para trazer os resultados.</p>
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="btn-efetuar-captura" id="btn-submit-captura">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M5.81481 1V6M5.81481 11V6M5.81481 6H11M5.81481 6H1" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Efetuar captura</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Logout -->
+  <div class="modal-overlay" id="modal-logout">
+    <div class="modal-container modal-logout-container">
+      <button class="modal-close" id="btn-close-logout-modal" aria-label="Fechar modal">&times;</button>
+      <div class="modal-logout-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <h2 class="modal-logout-title">Sair da plataforma</h2>
+      <p class="modal-logout-text">Tem certeza que deseja sair? Você será redirecionado para a tela de login.</p>
+      <div class="modal-logout-actions">
+        <button class="btn-modal-cancel">Cancelar</button>
+        <button class="btn-modal-danger">Sair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container de Toasts/Notificações -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Supabase CDN e Configuração -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>
