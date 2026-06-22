@@ -103,6 +103,29 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Rota de Recuperação de Senha (resetPasswordForEmail)
+app.post('/api/auth/recover', async (req, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
+  }
+
+  const { email, redirectTo } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email é obrigatório.' });
+  }
+
+  try {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo
+    });
+
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Rota para Atualizar Perfil de Usuário (Metadados - requer token ativo do usuário)
 app.put('/api/user/profile', async (req, res) => {
   if (!supabase) {

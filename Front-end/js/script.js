@@ -1076,14 +1076,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Forgot Password Action
   if (btnForgotPassword) {
-    btnForgotPassword.addEventListener('click', (e) => {
+    btnForgotPassword.addEventListener('click', async (e) => {
       e.preventDefault();
       const email = document.getElementById('login-email')?.value?.trim();
-      if (email) {
-        showToast(`Instruções de recuperação enviadas para: ${email}`, 'success');
-      } else {
-        showToast('Insira seu e-mail no campo acima para recuperar a senha!', 'info');
+      if (!email) {
+        showToast('Insira seu e-mail no campo de login acima para recuperar a senha!', 'info');
         document.getElementById('login-email')?.focus();
+        return;
+      }
+
+      const submitBtn = document.getElementById('btn-submit-login');
+      const originalHTML = submitBtn ? submitBtn.innerHTML : '';
+      if (submitBtn) {
+        submitBtn.setAttribute('disabled', 'true');
+        submitBtn.innerHTML = `<span class="spinner"></span> <span>Enviando...</span>`;
+      }
+
+      // Detecta se o backend está online
+      let backendActive = false;
+      try {
+        const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
+        const statusData = await res.json();
+        if (statusData.status === 'online') {
+          backendActive = true;
+        }
+      } catch (err) {}
+
+      const redirectToUrl = window.location.origin + window.location.pathname; // login.html
+
+      try {
+        if (backendActive) {
+          await callBackend('/api/auth/recover', 'POST', { email, redirectTo: redirectToUrl });
+          showToast(`Instruções de recuperação enviadas para: ${email}`, 'success');
+        } else if (window.isSupabaseConfigured && window.supabaseClient) {
+          const { error } = await window.supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: redirectToUrl
+          });
+          if (error) throw error;
+          showToast(`Instruções de recuperação enviadas para: ${email}`, 'success');
+        } else {
+          // Modo offline/simulado
+          showToast(`[SIMULAÇÃO] Instruções de recuperação enviadas para: ${email}`, 'success');
+        }
+      } catch (error) {
+        showToast(`Erro ao recuperar senha: ${error.message || 'Falha na requisição'}`, 'info');
+      } finally {
+        if (submitBtn) {
+          submitBtn.removeAttribute('disabled');
+          submitBtn.innerHTML = originalHTML;
+        }
       }
     });
   }
