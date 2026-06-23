@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const getPageUrl = (pageName) => {
     const isLocalFile = window.location.protocol === 'file:';
     if (isLocalFile) {
-      if (pageName === 'dashboard') return 'index.html';
+      if (pageName === 'dashboard') return 'dashboard.html';
       return `${pageName}.html`;
     }
     return `/${pageName}`;
@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('a[href]').forEach(link => {
       const href = link.getAttribute('href');
       if (href) {
-        if (href === 'index.html') {
+        if (href === 'dashboard.html') {
           link.setAttribute('href', '/dashboard');
         } else if (href.endsWith('.html') && !href.startsWith('http') && !href.startsWith('//')) {
           const cleanPath = '/' + href.replace('.html', '');

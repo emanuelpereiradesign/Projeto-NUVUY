@@ -12,7 +12,7 @@ Dashboard de gestão de leads com suporte a dois modos de operação (Híbrido):
 
 ```
 # Executar o Front-end diretamente no navegador
-start Front-end/index.html
+start Front-end/dashboard.html
 
 # Para rodar o Back-end (opcional, requer .env configurado)
 cd Back-end
@@ -25,7 +25,7 @@ npm run dev
 ```
 PROJETO-NUVUY/
 ├── Front-end/
-│   ├── index.html                    # dashboard (Kanban de leads)
+│   ├── dashboard.html                # dashboard (Kanban de leads)
 │   ├── leads-inteligentes.html       # métricas Chart.js, listagem de leads, detalhamento e Roteiro de Abordagem IA
 │   ├── login.html                    # login/cadastro (glassmorphism, sem sidebar)
 │   ├── configuracoes.html            # perfil, senha, predefinições do agente
