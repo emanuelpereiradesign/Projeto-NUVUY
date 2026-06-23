@@ -9,7 +9,7 @@
  */
 const evaluateLeadWithAI = async (leadData) => {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+  const model = process.env.OPENROUTER_MODEL || 'openrouter/free';
 
   if (!apiKey || apiKey === 'SEU_OPENROUTER_API_KEY_AQUI') {
     console.log('[AI] OpenRouter não configurado. Utilizando classificação simulada.');
@@ -69,6 +69,9 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem marcações markdown extra ou 
 }`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,8 +88,11 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem marcações markdown extra ou 
             content: prompt
           }
         ]
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeout);
 
     const result = await response.json();
     if (!response.ok) {

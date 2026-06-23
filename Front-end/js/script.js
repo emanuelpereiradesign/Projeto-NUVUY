@@ -177,8 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
-  if (!localStorage.getItem('nuvuy_simulated_leads')) {
-    localStorage.setItem('nuvuy_simulated_leads', JSON.stringify(initialMockLeads));
+  // Limpa dados antigos de testes que ficaram persistidos no localStorage
+  const STORAGE_VERSION_KEY = 'nuvuy_storage_version';
+  const CURRENT_STORAGE_VERSION = '2.1';
+  if (localStorage.getItem(STORAGE_VERSION_KEY) !== CURRENT_STORAGE_VERSION) {
+    localStorage.removeItem('nuvuy_simulated_leads');
+    localStorage.setItem(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION);
   }
 
   // Configuração do Helper de Chamada da API do Back-end Express
@@ -204,21 +208,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return data;
   };
 
+  // Helper unificado para verificar se o back-end está ativo
+  const isBackendActive = async () => {
+    try {
+      const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
+      const statusData = await res.json();
+      return statusData.status === 'online';
+    } catch (e) {
+      return false;
+    }
+  };
+
   // Session check and redirect (Back-end or direct Supabase client fallback)
   const checkSession = async () => {
     const isLoginPage = window.location.pathname.includes('login.html') || window.location.pathname.endsWith('/login');
     
     // 1. Tenta verificar se o Back-end está ativo e responde online
-    let backendActive = false;
-    try {
-      const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
-      const statusData = await res.json();
-      if (statusData.status === 'online') {
-        backendActive = true;
-      }
-    } catch (e) {
-      // Servidor Back-end inativo
-    }
+    const backendActive = await isBackendActive();
 
     if (backendActive) {
       const token = localStorage.getItem('nuvuy_access_token');
@@ -309,17 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const isDashboard = document.querySelector('.leads-grid') !== null && !document.getElementById('chart-daily-captures');
   if (isDashboard) {
     const loadDashboardLeads = async () => {
-      // 1. Tenta verificar se o Back-end está ativo e responde online
-      let backendActive = false;
-      try {
-        const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
-        const statusData = await res.json();
-        if (statusData.status === 'online') {
-          backendActive = true;
-        }
-      } catch (e) {
-        // Servidor Back-end inativo
-      }
+      const backendActive = await isBackendActive();
 
       const token = localStorage.getItem('nuvuy_access_token');
       let leads = [];
@@ -673,6 +669,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
           const leads = res.data;
           
+          const existingLeads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
+          localStorage.setItem('nuvuy_simulated_leads', JSON.stringify([...leads, ...existingLeads]));
+
           let countQuente = 0;
           let countMorno = 0;
           let countFrio = 0;
@@ -685,10 +684,8 @@ document.addEventListener('DOMContentLoaded', () => {
             insertLeadCardIntoDOM(lead);
           });
 
-          // Update stats
           updateTotalStats(countQuente, countMorno, countFrio);
 
-          // Update leads page database if active
           if (typeof window.addLeadsToIntelligentPanel === 'function') {
             window.addLeadsToIntelligentPanel(leads);
           }
@@ -736,6 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Helper Functions ---
+
+  // Sanitiza strings para prevenir XSS ao injetar via innerHTML
+  function escapeHtml(str) {
+    if (!str) return '';
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+    return String(str).replace(/[&<>"']/g, c => map[c]);
+  }
 
   // Generate simulated leads data
   function generateSimulatedLeads(nicho, regiao, qty) {
@@ -810,7 +814,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const source = Math.random() > 0.5 ? "Google Maps" : "Instagram";
 
       leads.push({
-        id: 'sim-' + Math.random().toString(36).substr(2, 9),
+        id: 'sim-' + Math.random().toString(36).substring(2, 11),
         title: leadTitle,
         percent: percent,
         type: type,
@@ -847,12 +851,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     card.innerHTML = `
       <div class="lead-card-header">
-        <span class="lead-title">${lead.title}</span>
-        <span class="lead-percent">${lead.percent}%</span>
+        <span class="lead-title">${escapeHtml(lead.title)}</span>
+        <span class="lead-percent">${escapeHtml(lead.percent)}%</span>
       </div>
       <div class="lead-tags">
-        <span class="lead-tag tag-${lead.type}">${typeLabel}</span>
-        <span class="lead-tag tag-category">${lead.category}</span>
+        <span class="lead-tag tag-${escapeHtml(lead.type)}">${escapeHtml(typeLabel)}</span>
+        <span class="lead-tag tag-category">${escapeHtml(lead.category)}</span>
         ${(!lead.website || lead.website === 'Não possui' || lead.website.trim() === '' || lead.website.toLowerCase().includes('não possui') || lead.website.toLowerCase().includes('não tem') || lead.website.toLowerCase().includes('no-website')) ? '<span class="lead-tag tag-no-site">NÃO POSSUI SITE</span>' : ''}
       </div>
       <div class="lead-rating-container">
@@ -861,7 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
             <path d="M5.53271 0.690984C5.83206 -0.230327 7.13547 -0.230328 7.43482 0.690983L8.27988 3.2918C8.41375 3.70382 8.79771 3.98278 9.23093 3.98278H11.9656C12.9343 3.98278 13.3371 5.22239 12.5534 5.7918L10.341 7.39919C9.9905 7.65383 9.84385 8.1052 9.97772 8.51722L10.8228 11.118C11.1221 12.0393 10.0676 12.8055 9.28393 12.2361L7.07155 10.6287C6.72106 10.374 6.24647 10.374 5.89598 10.6287L3.6836 12.2361C2.89988 12.8055 1.8454 12.0393 2.14475 11.118L2.98981 8.51722C3.12368 8.1052 2.97703 7.65383 2.62654 7.39919L0.414156 5.7918C-0.369558 5.22239 0.033217 3.98278 1.00194 3.98278H3.7366C4.16982 3.98278 4.55378 3.70382 4.68765 3.2918L5.53271 0.690984Z" fill="#FBFF00"/>
           </svg>
-          <span class="rating-number">${lead.rating}</span>
+          <span class="rating-number">${escapeHtml(lead.rating)}</span>
         </div>
       </div>
       <div class="lead-card-actions">
@@ -1016,39 +1020,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnLogoutConfirm) {
-    btnLogoutConfirm.addEventListener('click', async () => {
-      if (window.isSupabaseConfigured && window.supabaseClient) {
-        try {
-          await window.supabaseClient.auth.signOut();
-        } catch (err) {
-          console.error('Erro ao deslogar do Supabase:', err);
-        }
-      }
-      localStorage.removeItem('nuvuy_user_name');
-      localStorage.removeItem('nuvuy_access_token');
-      localStorage.removeItem('nuvuy_refresh_token');
-      window.location.href = getPageUrl('login');
+    btnLogoutConfirm.addEventListener('click', () => {
+      window.auth.signOut();
     });
   }
 
   // Direct logout handler for pages without modal (e.g. configuracoes.html)
   const directLogoutBtn = document.querySelector('a.btn-logout');
   if (directLogoutBtn) {
-    directLogoutBtn.addEventListener('click', async (e) => {
+    directLogoutBtn.addEventListener('click', (e) => {
       const logoutModal = document.getElementById('modal-logout');
       if (!logoutModal) {
         e.preventDefault();
-        if (window.isSupabaseConfigured && window.supabaseClient) {
-          try {
-            await window.supabaseClient.auth.signOut();
-          } catch (err) {
-            console.error('Erro ao deslogar do Supabase:', err);
-          }
-        }
-        localStorage.removeItem('nuvuy_user_name');
-        localStorage.removeItem('nuvuy_access_token');
-        localStorage.removeItem('nuvuy_refresh_token');
-        window.location.href = getPageUrl('login');
+        window.auth.signOut();
       }
     });
   }
@@ -1119,14 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Detecta se o backend está online
-      let backendActive = false;
-      try {
-        const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
-        const statusData = await res.json();
-        if (statusData.status === 'online') {
-          backendActive = true;
-        }
-      } catch (err) {}
+      const backendActive = await isBackendActive();
 
       const redirectToUrl = window.location.origin + window.location.pathname; // login.html
 
@@ -1284,106 +1261,48 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Leads Inteligentes Page Logic ---
   const isLeadsPage = document.getElementById('chart-daily-captures') !== null;
   if (isLeadsPage) {
-    // 1. Initial mock database
-    const leadsDatabase = [
-      {
-        id: 1,
-        title: "Lumière Boutique",
-        percent: 85,
-        type: "quente",
-        category: "VESTUÁRIO",
-        rating: "4.8",
-        source: "Instagram",
-        phone: "+55 (11) 98765-4321",
-        email: "contato@lumiereboutique.com.br",
-        instagram: "@lumiere.boutique",
-        website: "www.lumiereboutique.com.br",
-        address: "Rua Oscar Freire, 1000 - Cerqueira César, São Paulo - SP",
-        date: "11/06/2026"
-      },
-      {
-        id: 2,
-        title: "Supermercado Progresso",
-        percent: 55,
-        type: "morno",
-        category: "SUPERMERCADOS",
-        rating: "4.2",
-        source: "Google Maps",
-        phone: "+55 (11) 3456-7890",
-        email: "suporte@superprogresso.com.br",
-        instagram: "@supermercado.progresso",
-        website: "www.superprogresso.com.br",
-        address: "Av. Celso Garcia, 2500 - Tatuapé, São Paulo - SP",
-        date: "10/06/2026"
-      },
-      {
-        id: 3,
-        title: "Drogaria FarmaVida",
-        percent: 25,
-        type: "frio",
-        category: "FARMÁCIAS",
-        rating: "3.8",
-        source: "Google Maps",
-        phone: "+55 (11) 2233-4455",
-        email: "farma.vida@gmail.com",
-        instagram: "@farmavida.sp",
-        website: "www.farmavida.com.br",
-        address: "Rua das Palmeiras, 150 - Santa Cecília, São Paulo - SP",
-        date: "09/06/2026"
-      },
-      {
-        id: 4,
-        title: "Bella Fit Academia",
-        percent: 92,
-        type: "quente",
-        category: "ACADEMIAS",
-        rating: "4.9",
-        source: "Instagram",
-        phone: "+55 (11) 99887-7665",
-        email: "atendimento@bellafit.com.br",
-        instagram: "@bellafit.oficial",
-        website: "www.bellafit.com.br",
-        address: "Av. Paulista, 1500 - Bela Vista, São Paulo - SP",
-        date: "11/06/2026"
-      },
-      {
-        id: 5,
-        title: "Hambúrguer Gourmet Co.",
-        percent: 68,
-        type: "morno",
-        category: "RESTAURANTES",
-        rating: "4.5",
-        source: "Instagram",
-        phone: "+55 (11) 91234-5678",
-        email: "pedidos@gourmetburger.com",
-        instagram: "@gourmet.burger",
-        website: "www.gourmetburger.com",
-        address: "Rua Augusta, 800 - Consolação, São Paulo - SP",
-        date: "11/06/2026"
-      }
-    ];
+    const leadsDatabase = [];
 
     let captureChart, distributionChart;
 
     // 2. Initialize Chart.js
     const initCharts = () => {
-      // Calculate data from database
       const counts = { quente: 0, morno: 0, frio: 0 };
       leadsDatabase.forEach(l => counts[l.type]++);
 
-      // Daily captures simulation (Line chart)
+      if (captureChart) {
+        captureChart.destroy();
+        captureChart = null;
+      }
+      if (distributionChart) {
+        distributionChart.destroy();
+        distributionChart = null;
+      }
+
       const ctxDaily = document.getElementById('chart-daily-captures')?.getContext('2d');
       if (ctxDaily) {
-        if (captureChart) captureChart.destroy();
+
+        const dateCounts = {};
+        leadsDatabase.forEach(l => {
+          const d = l.date || new Date().toLocaleDateString('pt-BR');
+          dateCounts[d] = (dateCounts[d] || 0) + 1;
+        });
+        const sortedDates = Object.keys(dateCounts).sort((a, b) => {
+          const [da, ma, ya] = a.split('/').map(Number);
+          const [db, mb, yb] = b.split('/').map(Number);
+          return new Date(ya, ma - 1, da) - new Date(yb, mb - 1, db);
+        });
+        const last7 = sortedDates.slice(-7);
+        const labels = last7.length > 0 ? last7 : ['Sem dados'];
+        const dataPoints = last7.length > 0 ? last7.map(d => dateCounts[d]) : [0];
         
-        // Custom plugin to support thin grid border styling
         captureChart = new Chart(ctxDaily, {
           type: 'line',
           data: {
-            labels: ['05/06', '06/06', '07/06', '08/06', '09/06', '10/06', '11/06'],
+            labels: labels,
             datasets: [{
               label: 'Leads Capturados',
-              data: [5, 12, 8, 15, 20, 18, leadsDatabase.length],
+              data: dataPoints,
               borderColor: '#00A6FF',
               backgroundColor: 'rgba(0, 166, 255, 0.08)',
               borderWidth: 2,
@@ -1406,7 +1325,6 @@ document.addEventListener('DOMContentLoaded', () => {
       // Distribution chart (Doughnut)
       const ctxDist = document.getElementById('chart-lead-distribution')?.getContext('2d');
       if (ctxDist) {
-        if (distributionChart) distributionChart.destroy();
         distributionChart = new Chart(ctxDist, {
           type: 'doughnut',
           data: {
@@ -1458,15 +1376,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         item.innerHTML = `
           <div class="db-lead-header">
-            <span class="db-lead-title">${lead.title}</span>
-            <span class="db-lead-percent">${lead.percent}%</span>
+            <span class="db-lead-title">${escapeHtml(lead.title)}</span>
+            <span class="db-lead-percent">${escapeHtml(lead.percent)}%</span>
           </div>
           <div class="db-lead-meta">
             <div class="db-lead-tags">
-              <span class="lead-tag tag-${lead.type}" style="padding: 2px 6px; font-size: 8px;">${lead.type.toUpperCase()}</span>
-              <span class="lead-tag tag-category" style="padding: 2px 6px; font-size: 8px;">${lead.category}</span>
+              <span class="lead-tag tag-${escapeHtml(lead.type)}" style="padding: 2px 6px; font-size: 8px;">${escapeHtml(lead.type.toUpperCase())}</span>
+              <span class="lead-tag tag-category" style="padding: 2px 6px; font-size: 8px;">${escapeHtml(lead.category)}</span>
             </div>
-            <span class="db-lead-source">${lead.source}</span>
+            <span class="db-lead-source">${escapeHtml(lead.source)}</span>
           </div>
         `;
 
@@ -1542,19 +1460,19 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="metrics-grid">
             <div class="metric-block">
               <span class="metric-label">Localidade no Maps</span>
-              <span class="metric-value">${lead.address.split('-')[0] || lead.address}</span>
+              <span class="metric-value">${escapeHtml(lead.address.split('-')[0] || lead.address)}</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Qualidade das Imagens</span>
-              <span class="metric-value">${m.qualidade_imagens || 'Média'}</span>
+              <span class="metric-value">${escapeHtml(m.qualidade_imagens || 'Média')}</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Nota de Avaliação</span>
-              <span class="metric-value">${parseFloat(m.nota_avaliacao || lead.rating).toFixed(1)} / 5.0</span>
+              <span class="metric-value">${escapeHtml(parseFloat(m.nota_avaliacao || lead.rating).toFixed(1))} / 5.0</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Total de Comentários</span>
-              <span class="metric-value">${m.qtd_comentarios || 0} avaliações</span>
+              <span class="metric-value">${escapeHtml(m.qtd_comentarios || 0)} avaliações</span>
             </div>
           </div>
           <div class="comments-container">
@@ -1562,13 +1480,13 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="comment-tag-header">
                 <span class="comment-tag positive">Comentário Positivo Destaque</span>
               </div>
-              <span class="comment-text">"${justData.maps_comentarios_positivos || 'N/A'}"</span>
+              <span class="comment-text">"${escapeHtml(justData.maps_comentarios_positivos || 'N/A')}"</span>
             </div>
             <div class="comment-row">
               <div class="comment-tag-header">
                 <span class="comment-tag negative">Comentário Negativo Destaque</span>
               </div>
-              <span class="comment-text">"${justData.maps_comentarios_negativos || 'N/A'}"</span>
+              <span class="comment-text">"${escapeHtml(justData.maps_comentarios_negativos || 'N/A')}"</span>
             </div>
           </div>
         `;
@@ -1589,27 +1507,27 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="metrics-grid">
             <div class="metric-block">
               <span class="metric-label">Nome do Perfil</span>
-              <span class="metric-value">${lead.instagram || '@' + lead.title.toLowerCase().replace(/[^a-z0-9]/g, '')}</span>
+              <span class="metric-value">${escapeHtml(lead.instagram || '@' + lead.title.toLowerCase().replace(/[^a-z0-9]/g, ''))}</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Seguidores / Posts</span>
-              <span class="metric-value">${i.qtd_seguidores?.toLocaleString('pt-BR') || 0} seg. / ${i.qtd_postagem || 0} posts</span>
+              <span class="metric-value">${escapeHtml(i.qtd_seguidores?.toLocaleString('pt-BR') || 0)} seg. / ${escapeHtml(i.qtd_postagem || 0)} posts</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Coerência com Nicho</span>
-              <span class="metric-value">${justData.insta_coerencia_nicho || 'Média'}</span>
+              <span class="metric-value">${escapeHtml(justData.insta_coerencia_nicho || 'Média')}</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Qualidade Visual</span>
-              <span class="metric-value">${justData.insta_qualidade_imagens || i.qualidade_postagem || 'Média'}</span>
+              <span class="metric-value">${escapeHtml(justData.insta_qualidade_imagens || i.qualidade_postagem || 'Média')}</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Engajamento Médio</span>
-              <span class="metric-value">${parseFloat(i.taxa_engajamento || 0).toFixed(2)}% (Curtidas/Coment.)</span>
+              <span class="metric-value">${escapeHtml(parseFloat(i.taxa_engajamento || 0).toFixed(2))}% (Curtidas/Coment.)</span>
             </div>
             <div class="metric-block">
               <span class="metric-label">Impacto de Postagem</span>
-              <span class="metric-value">${justData.insta_impacto_postagem || 'Neutro'}</span>
+              <span class="metric-value">${escapeHtml(justData.insta_impacto_postagem || 'Neutro')}</span>
             </div>
           </div>
         `;
@@ -1618,44 +1536,44 @@ document.addEventListener('DOMContentLoaded', () => {
       detailsContent.innerHTML = `
         <div class="details-header-block">
           <div class="details-title-row">
-            <h4 class="details-lead-title">${lead.title}</h4>
-            <span class="details-lead-percent ${lead.type}">${lead.percent}%</span>
+            <h4 class="details-lead-title">${escapeHtml(lead.title)}</h4>
+            <span class="details-lead-percent ${escapeHtml(lead.type)}">${escapeHtml(lead.percent)}%</span>
           </div>
           <div class="details-badges">
-            <span class="lead-tag tag-${lead.type}">${lead.type.toUpperCase()}</span>
-            <span class="lead-tag tag-category">${lead.category}</span>
+            <span class="lead-tag tag-${escapeHtml(lead.type)}">${escapeHtml(lead.type.toUpperCase())}</span>
+            <span class="lead-tag tag-category">${escapeHtml(lead.category)}</span>
             <div class="details-rating">
               <svg width="11" height="11" viewBox="0 0 13 13" fill="none">
                 <path d="M5.53271 0.690984C5.83206 -0.230327 7.13547 -0.230328 7.43482 0.690983L8.27988 3.2918C8.41375 3.70382 8.79771 3.98278 9.23093 3.98278H11.9656C12.9343 3.98278 13.3371 5.22239 12.5534 5.7918L10.341 7.39919C9.9905 7.65383 9.84385 8.1052 9.97772 8.51722L10.8228 11.118C11.1221 12.0393 10.0676 12.8055 9.28393 12.2361L7.07155 10.6287C6.72106 10.374 6.24647 10.374 5.89598 10.6287L3.6836 12.2361C2.89988 12.8055 1.8454 12.0393 2.14475 11.118L2.98981 8.51722C3.12368 8.1052 2.97703 7.65383 2.62654 7.39919L0.414156 5.7918C-0.369558 5.22239 0.033217 3.98278 1.00194 3.98278H3.7366C4.16982 3.98278 4.55378 3.70382 4.68765 3.2918L5.53271 0.690984Z" fill="#FBFF00"/>
               </svg>
-              <span>${lead.rating}</span>
+              <span>${escapeHtml(lead.rating)}</span>
             </div>
-            <span style="font-size: 10px; color: var(--text-secondary); font-family: 'Poppins', sans-serif;">via ${lead.source}</span>
+            <span style="font-size: 10px; color: var(--text-secondary); font-family: 'Poppins', sans-serif;">via ${escapeHtml(lead.source)}</span>
           </div>
         </div>
 
         <div class="details-info-grid">
           <div class="info-item">
             <span class="info-label">Telefone / Celular</span>
-            <span class="info-value"><a href="tel:${lead.phone}">${lead.phone}</a></span>
+            <span class="info-value"><a href="tel:${escapeHtml(lead.phone)}">${escapeHtml(lead.phone)}</a></span>
           </div>
           <div class="info-item">
             <span class="info-label">WhatsApp</span>
             <span class="info-value">
               ${justData.maps_whatsapp && justData.maps_whatsapp !== 'N/A' 
-                ? `<a href="https://wa.me/${justData.maps_whatsapp.replace(/[^0-9]/g, '')}" target="_blank">${justData.maps_whatsapp}</a>` 
-                : `<a href="https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}" target="_blank">${lead.phone}</a>`
+                ? `<a href="https://wa.me/${justData.maps_whatsapp.replace(/[^0-9]/g, '')}" target="_blank">${escapeHtml(justData.maps_whatsapp)}</a>` 
+                : `<a href="https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}" target="_blank">${escapeHtml(lead.phone)}</a>`
               }
             </span>
           </div>
           <div class="info-item">
             <span class="info-label">E-mail</span>
-            <span class="info-value"><a href="mailto:${lead.email}">${lead.email}</a></span>
+            <span class="info-value"><a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a></span>
           </div>
           ${lead.instagram ? `
           <div class="info-item">
             <span class="info-label">Instagram</span>
-            <span class="info-value"><a href="https://instagram.com/${lead.instagram.replace('@', '')}" target="_blank">${lead.instagram}</a></span>
+            <span class="info-value"><a href="https://instagram.com/${escapeHtml(lead.instagram.replace('@', ''))}" target="_blank">${escapeHtml(lead.instagram)}</a></span>
           </div>
           ` : ''}
           <div class="info-item">
@@ -1663,17 +1581,17 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="info-value">
               ${(!lead.website || lead.website === 'Não possui' || lead.website.trim() === '') 
                 ? '<span style="color: #FF453A; font-weight: 600;">NÃO POSSUI SITE</span>' 
-                : `<a href="https://${lead.website}" target="_blank">${lead.website}</a>`
+                : `<a href="https://${escapeHtml(lead.website)}" target="_blank">${escapeHtml(lead.website)}</a>`
               }
             </span>
           </div>
           <div class="info-item">
             <span class="info-label">Endereço</span>
-            <span class="info-value">${lead.address}</span>
+            <span class="info-value">${escapeHtml(lead.address)}</span>
           </div>
           <div class="info-item">
             <span class="info-label">Data da Captura</span>
-            <span class="info-value">${lead.date}</span>
+            <span class="info-value">${escapeHtml(lead.date)}</span>
           </div>
         </div>
 
@@ -1686,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="script-title">ROTEIRO DE ABORDAGEM SUGERIDO</span>
           </div>
           <div class="script-body">
-            "${justData.abordagem.replace(/\*\*/g, '')}"
+            "${escapeHtml(justData.abordagem.replace(/\*\*/g, ''))}"
           </div>
           <button class="btn-copiar-roteiro" id="btn-copy-script">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1774,25 +1692,23 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update counters in database panel
       const counts = { quente: 0, morno: 0, frio: 0 };
       leadsDatabase.forEach(l => counts[l.type]++);
-      
+
+      const totalEl = document.getElementById('stat-total-leads');
+      const quenteEl = document.getElementById('stat-quente-leads');
+      const mornoEl = document.getElementById('stat-morno-leads');
+      const frioEl = document.getElementById('stat-frio-leads');
+      if (totalEl) totalEl.textContent = leadsDatabase.length;
+      if (quenteEl) quenteEl.textContent = counts.quente;
+      if (mornoEl) mornoEl.textContent = counts.morno;
+      if (frioEl) frioEl.textContent = counts.frio;
+
       // Re-render list and charts
       renderLeadsList(searchDbInput?.value || '');
       initCharts();
     };
 
-    // Initialize Page
     const initPage = async () => {
-      // 1. Tenta verificar se o Back-end está ativo e responde online
-      let backendActive = false;
-      try {
-        const res = await fetch(`${window.BACKEND_API_URL}/api/status`);
-        const statusData = await res.json();
-        if (statusData.status === 'online') {
-          backendActive = true;
-        }
-      } catch (e) {
-        // Servidor Back-end inativo
-      }
+      const backendActive = await isBackendActive();
 
       const token = localStorage.getItem('nuvuy_access_token');
       let leads = [];
@@ -1809,30 +1725,40 @@ document.addEventListener('DOMContentLoaded', () => {
         leads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
       }
 
-      if (leads.length > 0) {
-        leadsDatabase.length = 0;
-        leads.forEach((l, index) => {
-          leadsDatabase.push({
-            id: l.id || (index + 1),
-            title: l.title,
-            percent: l.percent,
-            type: l.type,
-            category: l.category,
-            rating: l.rating,
-            source: l.source,
-            phone: l.phone,
-            email: l.email,
-            instagram: l.instagram,
-            website: l.website,
-            address: l.address,
-            date: l.date,
-            justificativa_ia: l.justificativa_ia,
-            mapsMetrics: l.mapsMetrics,
-            instaMetrics: l.instaMetrics
-          });
+      leadsDatabase.length = 0;
+      leads.forEach((l, index) => {
+        leadsDatabase.push({
+          id: l.id || (index + 1),
+          title: l.title,
+          percent: l.percent,
+          type: l.type,
+          category: l.category,
+          rating: l.rating,
+          source: l.source,
+          phone: l.phone,
+          email: l.email,
+          instagram: l.instagram,
+          website: l.website,
+          address: l.address,
+          date: l.date,
+          justificativa_ia: l.justificativa_ia,
+          mapsMetrics: l.mapsMetrics,
+          instaMetrics: l.instaMetrics
         });
-      }
-      
+      });
+
+      const counts = { quente: 0, morno: 0, frio: 0 };
+      leadsDatabase.forEach(l => counts[l.type]++);
+
+      const totalEl = document.getElementById('stat-total-leads');
+      const quenteEl = document.getElementById('stat-quente-leads');
+      const mornoEl = document.getElementById('stat-morno-leads');
+      const frioEl = document.getElementById('stat-frio-leads');
+      if (totalEl) totalEl.textContent = leadsDatabase.length;
+      if (quenteEl) quenteEl.textContent = counts.quente;
+      if (mornoEl) mornoEl.textContent = counts.morno;
+      if (frioEl) frioEl.textContent = counts.frio;
+
       initCharts();
       renderLeadsList();
     };

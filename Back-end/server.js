@@ -278,8 +278,9 @@ app.post('/api/tarefas', async (req, res) => {
     // 5. Executa a captação de leads via Web Scraper
     const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, fontes);
 
-    // Qualifica os leads utilizando a IA (OpenRouter) em paralelo
-    const evaluationPromises = leadsToProcess.map(async (leadData) => {
+    // Qualifica os leads utilizando a IA (OpenRouter) sequencialmente para evitar rate limit
+    const qualifiedLeads = [];
+    for (const leadData of leadsToProcess) {
       const aiEval = await evaluateLeadWithAI({
         name: leadData.name,
         category: nicho.toUpperCase(),
@@ -295,10 +296,8 @@ app.post('/api/tarefas', async (req, res) => {
         engagementRate: leadData.instaMetrics ? leadData.instaMetrics.taxa_engajamento : 0,
         postsQuality: leadData.instaMetrics ? leadData.instaMetrics.qualidade_postagem : 'Média'
       });
-      return { ...leadData, aiEval };
-    });
-
-    const qualifiedLeads = await Promise.all(evaluationPromises);
+      qualifiedLeads.push({ ...leadData, aiEval });
+    }
     const generatedLeads = [];
 
     // Salva os leads qualificados no banco de dados
