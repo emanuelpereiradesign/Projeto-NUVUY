@@ -62,6 +62,30 @@ const scrapeGooglePlaces = async (nicho, regiao, limit = 10) => {
   }
 };
 
+const tagMap = {
+  'padaria': 'shop=bakery',
+  'academia': 'leisure=fitness_centre',
+  'restaurante': 'amenity=restaurant',
+  'hamburgueria': 'amenity=restaurant',
+  'pizzaria': 'amenity=restaurant',
+  'lanchonete': 'amenity=fast_food',
+  'mercado': 'shop=supermarket',
+  'supermercado': 'shop=supermarket',
+  'dentista': 'amenity=dentist',
+  'clinica': 'amenity=clinic',
+  'estetica': 'shop=beauty',
+  'farmacia': 'amenity=pharmacy',
+  'oficina': 'shop=car_repair',
+  'hotel': 'tourism=hotel',
+  'pousada': 'tourism=guest_house',
+  'escola': 'amenity=school',
+  'cafe': 'amenity=cafe',
+  'bar': 'amenity=bar',
+  'vestuario': 'shop=clothes',
+  'roupa': 'shop=clothes',
+  'loja': 'shop'
+};
+
 /**
  * Fallback secundário — Overpass API (OpenStreetMap)
  * Mais rica que Nominatim: retorna telefone, website, horário, etc.
@@ -74,29 +98,78 @@ const scrapeOverpassOSM = async (nicho, regiao, limit = 10) => {
     });
     const geoData = await geoRes.json();
 
-    let bbox = null;
-    if (geoData && geoData.length > 0) {
-      const b = geoData[0].boundingbox;
-      bbox = `${b[0]},${b[3]},${b[1]},${b[2]}`;
+    if (!geoData || geoData.length === 0) {
+      console.log('[Scraper] Nenhum resultado de geocodificação para a região.');
+      return [];
     }
 
+    const lat = geoData[0].lat;
+    const lon = geoData[0].lon;
+
+    const cleanNicho = nicho.toLowerCase().trim();
+    let osmTag = '';
+    
+    for (const key in tagMap) {
+      if (cleanNicho.includes(key)) {
+        osmTag = tagMap[key];
+        break;
+      }
+    }
+
+    let overpassQuery = '';
     const nichoEscaped = nicho.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const overpassQuery = `[out:json][timeout:15];(node["name"~"${nichoEscaped}",i]${bbox ? `(${bbox})` : ''};way["name"~"${nichoEscaped}",i]${bbox ? `(${bbox})` : ''};);out body ${limit};`;
-
-    const overpassRes = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
-      },
-      body: `data=${encodeURIComponent(overpassQuery)}`
-    });
-
-    if (!overpassRes.ok) {
-      throw new Error(`Overpass API retornou status ${overpassRes.status}`);
+    
+    // Raio de busca de 3km ao redor do centro da região
+    if (osmTag) {
+      overpassQuery = `[out:json][timeout:15];(
+        node[${osmTag}](around:3000,${lat},${lon});
+        way[${osmTag}](around:3000,${lat},${lon});
+      );out body ${limit};`;
+    } else {
+      overpassQuery = `[out:json][timeout:15];(
+        node["name"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+        way["name"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+        node["shop"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+        way["shop"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+        node["amenity"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+        way["amenity"~"${nichoEscaped}",i](around:3000,${lat},${lon});
+      );out body ${limit};`;
     }
 
-    const overpassData = await overpassRes.json();
+    // Instâncias públicas estáveis globais do Overpass
+    const instances = [
+      'https://z.overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter',
+      'https://overpass.osm.ch/api/interpreter'
+    ];
+
+    let overpassData = null;
+
+    for (const instance of instances) {
+      try {
+        const url = `${instance}?data=${encodeURIComponent(overpassQuery)}`;
+        const overpassRes = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+
+        if (overpassRes.status === 200) {
+          overpassData = await overpassRes.json();
+          console.log(`[Scraper] Sucesso ao obter dados do Overpass usando a instância: ${instance}`);
+          break;
+        }
+      } catch (err) {
+        console.warn(`[Scraper] Falha ao consultar instância ${instance}:`, err.message);
+      }
+    }
+
+    if (!overpassData || !overpassData.elements) {
+      console.log('[Scraper] Nenhuma resposta válida obtida das instâncias do Overpass.');
+      return [];
+    }
+
     const elements = (overpassData.elements || []).filter(e => e.tags && e.tags.name);
 
     if (elements.length === 0) {
