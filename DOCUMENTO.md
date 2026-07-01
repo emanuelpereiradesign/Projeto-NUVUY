@@ -24,7 +24,6 @@ O Nuvuy (captura de leads) é uma ferramenta própria de web scraping e classifi
 | Ator | Descrição |
 |------|-----------|
 | **Usuário (Assinante)** | Ator principal. Representa os profissionais que utilizam o dashboard web. Inicia as campanhas de busca, consome os créditos do plano e acessa os dados dos leads. |
-| **Administrador** | Ator secundário. Tem acesso ao painel de controle para gerenciar planos e monitorar o status dos agentes de coleta de dados. |
 | **Sistemas Externos (Atores Não-Humanos)** | Representam as plataformas das quais o sistema extrai os dados (Google Maps e Instagram) e a API de IA (OpenRouter), responsável por processar e classificar as informações capturadas de forma automatizada. |
 
 ## 5. Minimundo do Projeto
@@ -33,18 +32,26 @@ O Nuvuy é um sistema SaaS de prospecção digital projetado para prestadores de
 
 O grande diferencial do sistema é o seu motor interno de qualificação, alimentado por Modelos de Linguagem de Larga Escala (LLMs) integrados via OpenRouter. Após os scrapers capturarem os dados brutos (nome, contato, website, endereço, categoria), o sistema envia essas informações para a IA, que analisa a presença digital do potencial cliente. Com base nessa análise, o sistema atribui um "Score" exclusivo para o lead, classificando-o automaticamente em três níveis de temperatura: **Frio** (0–40), **Morno** (41–70) ou **Quente** (71–100).
 
-Toda a interface de gestão ocorre em um dashboard web responsivo com tema futurista/dark, onde os leads são listados de forma clara em formato de tabelas/listas interativas, priorizando aqueles com maior chance de fechamento. A infraestrutura do projeto roda 100% em nuvem, com persistência no Supabase (PostgreSQL), garantindo que as coletas e análises ocorram em segundo plano 24 horas por dia, sem depender do computador local do usuário.
+Toda a interface de gestão ocorre em um dashboard web responsivo com tema futurista/dark, utilizando um layout **Kanban** com três colunas (Quente, Morno, Frio) onde os leads são organizados por prioridade de fechamento.
+
+A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel, API no Render, banco no Supabase). Porém, o sistema também funciona em **modo híbrido**: se o backend estiver offline, o frontend opera de forma totalmente estática, persistindo os leads capturados em `localStorage`.
 
 ### 5.1 Fluxo Funcional Situacional
 
-1. Usuário cria uma tarefa solicitando X leads (máx. 10 por tarefa).
-2. Sistema verifica se o usuário ainda tem saldo disponível (plano + tokens).
-3. Se ok, tarefa é registrada no banco (Supabase) com status `pending`.
-4. GitHub Actions roda periodicamente, busca tarefas pendentes e processa:
-   - Divide a coleta entre Google Maps (via API oficial) e Instagram (via scraper).
-   - Executa o scraping sem limite de tempo curto, em lote.
-5. Salva os resultados no Supabase e atualiza status para `completed`.
-6. Front-end (HTML, CSS, JS hospedado no Vercel) mostra os leads captados ao usuário.
+1. Usuário preenche o modal de captura com nicho, região, quantidade e fontes (Google Maps e/ou Instagram).
+2. Front-end envia requisição `POST /api/tarefas` para o backend Express (porta 3000).
+3. Back-end verifica o token JWT do usuário e cria o registro da tarefa no Supabase.
+4. Back-end executa o **scraper multicamada** imediatamente (de forma síncrona):
+   - **1ª camada**: Google Places API (requer chave oficial)
+   - **2ª camada**: Nominatim (OpenStreetMap) com enriquecimento via DuckDuckGo
+   - **3ª camada**: DuckDuckGo Direct (leads orgânicos adicionais)
+   - **4ª camada**: OpenRouter LLM (fallback inteligente gerando leads reais)
+   - **5ª camada**: Fallback local estruturado com endereços realistas
+5. Para cada lead capturado, o sistema envia os dados para o **OpenRouter LLM**, que analisa a presença digital e retorna pontuação (0–100), classificação (quente/morno/frio) e justificativa com roteiro de abordagem.
+6. Caso a IA falhe ou não esteja configurada, um **fallback simulado** classifica com base em regras fixas (site, seguidores, avaliação).
+7. Tudo é salvo no Supabase: `lead`, `metrica_google_maps`, `metrica_instagram` e `score`.
+8. Back-end retorna os leads formatados → Front-end insere os cards nas colunas do Kanban.
+9. Se o backend estiver offline, o front-end opera em **modo simulado** usando dados mockados em `localStorage`.
 
 ## 6. Modelo Canvas
 
@@ -77,11 +84,11 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 | ID | Descrição | Prioridade |
 |----|-----------|------------|
-| RF01 | Scraping de dados do Google Maps (nome, endereço, telefone, avaliação, website) | Alta |
-| RF02 | Scraping de dados do Instagram (perfil, seguidores, engajamento) | Alta |
-| RF03 | Scraping de dados do Google Search via API | Alta |
-| RF04 | Gerenciamento de filas de scraping jobs com status | Alta |
-| RF05 | Fontes de dados configuráveis (ativa/desativa) | Alta |
+| RF01 | Scraping de dados do Google Maps via Google Places API / Nominatim (nome, endereço, telefone, avaliação, website) | Alta |
+| RF02 | Geração de métricas de Instagram (seguidores, postagens, engajamento, qualidade) via dados simulados e enriquecimento DuckDuckGo | Alta |
+| RF03 | Scraping de dados via DuckDuckGo Direct para leads orgânicos adicionais | Alta |
+| RF04 | Fallback inteligente usando OpenRouter LLM para gerar leads reais quando as fontes orgânicas falham | Média |
+| RF05 | Fontes de dados configuráveis (ativa/desativa via toggle no modal) | Alta |
 
 #### Módulo de Classificação de Leads
 
@@ -92,15 +99,19 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 | RF08 | Exibição dos fatores que influenciaram a classificação | Alta |
 | RF09 | Retreino do modelo com novos dados rotulados | Média |
 | RF10 | Cálculo de confiança da classificação | Média |
+| RF11 | Modo híbrido: operação com backend online ou fallback para simulação estática com localStorage | Alta |
 
 #### Módulo de Dashboard
 
 | ID | Descrição | Prioridade |
 |----|-----------|------------|
-| RF11 | Exibição de Leads em formato de tabela/DataGrid interativa, com filtros de classificação | Alta |
-| RF12 | Timeline de evolução e status dos leads | Média |
-| RF13 | Layout responsivo (desktop, tablet, mobile) | Alta |
-| RF14 | Tema visual futurista/dark | Alta |
+| RF12 | Exibição de Leads em formato Kanban com colunas Quente/Morno/Frio, cards com score, avaliação e ações | Alta |
+| RF13 | Modal de captura com inputs de nicho, região, quantidade e seleção de fontes | Alta |
+| RF14 | Painel "Leads Inteligentes" com gráficos (Chart.js), lista de leads, detalhes com justificativa da IA e roteiro de abordagem | Alta |
+| RF15 | Botão "Não possui site" destacado em vermelho nos cards do Kanban | Alta |
+| RF16 | Sistema de toast notifications com auto-dismiss (4s) e indicador de progresso | Média |
+| RF17 | Layout responsivo (desktop, tablet, mobile) | Alta |
+| RF18 | Tema visual futurista/dark com glassmorphism | Alta |
 
 ### 7.2 Requisitos Não Funcionais
 
@@ -114,38 +125,126 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 ### 7.3 Estrutura de Banco de Dados
 
-#### Tabela `users`
+O banco possui **8 tabelas** no schema `public` do Supabase, mais uma trigger de integração com `auth.users`. Todos os nomes de tabelas e colunas estão em **português** conforme a implementação.
+
+#### `usuario`
+Estende `auth.users` com dados de plano e consumo.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| id | UUID | Chave primária |
-| name | String | Nome do usuário |
-| email | String | Email do usuário |
-| plan_id | FK → plans | Plano contratado |
-| leads_used | Int | Leads consumidos no mês |
-| tokens_balance | Int | Saldo de tokens (recarga) |
+| id | UUID (PK) | Referencia `auth.users(id)` via FK |
+| nome | text | Nome do usuário |
+| email | text | Email |
+| data_cadastro | timestamptz | Data de cadastro (default `now()`) |
+| id_plano | UUID (FK → `plano.id`) | Plano contratado |
+| leads_utilizados | integer | Leads consumidos no mês |
+| saldo_tokens | integer | Saldo de tokens extras |
 
-#### Tabela `plans`
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | UUID | Chave primária |
-| name | String | Nome do plano |
-| monthly_limit | Int | Limite mensal de leads |
-| max_task_leads | Int | Máx. leads por tarefa |
-| max_tasks | Int | Máx. tarefas por mês |
-
-#### Tabela `tasks`
+#### `plano`
+Planos de assinatura.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| id | UUID | Chave primária |
-| user_id | FK → users | Usuário que criou a tarefa |
-| quantity | Int | Quantidade solicitada |
-| source | Enum | Fonte: `maps` / `instagram` |
-| status | String | `pending` / `completed` |
-| created_at | Timestamp | Data de criação |
-| results | JSON | Resultados do scraping |
+| id | UUID (PK) | Chave primária |
+| nome | text | Nome do plano (Gratuito, Básico, Pro) |
+| valor | numeric | Valor mensal (0, 49, 97) |
+| limite_mensal | integer | Limite mensal de leads |
+| max_leads_tarefa | integer | Máx. leads por tarefa (10) |
+| max_tarefas_mes | integer | Máx. tarefas por mês |
+| created_at | timestamptz | Data de criação |
+
+#### `tarefas`
+Tarefas de captura iniciadas pelo usuário.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| id_usuario | UUID (FK → `usuario.id`) | Usuário que criou |
+| data | timestamptz | Data de criação |
+| termo_busca | text | Nicho/palavra-chave |
+| local | text | Região de busca |
+| status | text | `completed` (processamento síncrono) |
+
+#### `fonte`
+Fontes de captura disponíveis.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| nome | text | "Google Maps" ou "Instagram" |
+| tipo | text | "Maps" ou "Instagram" |
+| ativo | boolean | Se está ativo |
+
+#### `tarefa_fonte`
+Tabela associativa N:N entre tarefas e fontes.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id_tarefa | UUID (FK → `tarefas.id`) | Tarefa |
+| id_fonte | UUID (FK → `fonte.id`) | Fonte |
+| PK composta | (id_tarefa, id_fonte) | |
+
+#### `lead`
+Leads capturados.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| id_tarefas | UUID (FK → `tarefas.id`) | Tarefa de origem |
+| nome | text | Nome da empresa |
+| email | text | Email de contato |
+| telefone | text | Telefone/WhatsApp |
+| website | text | URL do site (ou vazio se não possui) |
+| endereco | text | Endereço completo |
+| categoria | text | Nicho em maiúsculas |
+| data_captura | timestamptz | Data da captura |
+
+#### `metrica_google_maps`
+Métricas do Google Maps para cada lead.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
+| qtd_comentarios | integer | Número de avaliações |
+| nota_avaliacao | numeric | Nota (1.0 a 5.0) |
+| qualidade_imagens | text | "Baixa", "Média" ou "Alta" |
+
+#### `metrica_instagram`
+Métricas do Instagram para cada lead.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
+| qtd_seguidores | integer | Seguidores |
+| qtd_postagem | integer | Total de posts |
+| taxa_engajamento | numeric | Percentual de engajamento |
+| qualidade_postagem | text | "Baixa", "Média" ou "Alta" |
+| nicho_atuacao | text | Nicho do lead |
+
+#### `score`
+Classificação e pontuação do lead gerada pela IA.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID (PK) | Chave primária |
+| id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
+| id_mtc_instagram | UUID (FK → `metrica_instagram.id`) | Métricas Instagram usadas |
+| id_mtc_mps | UUID (FK → `metrica_google_maps.id`) | Métricas Maps usadas |
+| data_analise | timestamptz | Data da análise |
+| pontuacao | integer | 0 a 100 (check constraint) |
+| classificacao | text | "quente", "morno" ou "frio" |
+| justificativa_ia | text | JSON com justificativa, abordagem, comentários Maps, análise Instagram |
+| **Constraint** | `check_classificacao_faixa` | Garante: quente=71-100, morno=41-70, frio=0-40 |
+
+#### Trigger: `on_auth_user_created`
+
+Quando um novo usuário se cadastra via Supabase Auth, o trigger dispara a função `handle_new_user()`, que insere automaticamente uma linha em `public.usuario` vinculada ao plano **Gratuito**.
+
+#### RLS (Row Level Security)
+
+Todas as tabelas possuem políticas de segurança que restringem o acesso a `auth.uid()`, garantindo que cada usuário veja e manipule apenas seus próprios dados através da cadeia `usuario → tarefas → lead`.
 
 ## 8. Sistema de Classificação
 
@@ -184,13 +283,14 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 | Item | Fornecedor | Custo | Observação |
 |------|-----------|-------|------------|
-| Hospedagem (Front-end + API) | Vercel | Free (plano base) | Hospedagem do front-end e API serverless |
+| Front-end | Vercel | Free (plano base) | Hospedagem estática HTML/CSS/JS |
+| API Backend (Node.js/Express) | Render | Free (plano base) | API REST, scraper e IA rodam aqui |
 | Banco de dados | Supabase | Free (plano base) | 500 MB, 50k linhas |
-| Motor de scraping | GitHub Actions | Free | Minutos gratuitos para execução assíncrona |
-| Proxy | Código próprio | Free | Delays + User-Agent rotation |
+| Scraping multicamada | Interno (Express) | Free | Executado síncrono na própria API |
+| Enriquecimento DuckDuckGo | Público | Free | Sem API key necessária |
 | Domínio | Subdomínio grátis | Free | nuvuy.vercel.app ou similar |
 | Marketing | Orgânico | Free | Instagram, grupos |
-| LLM (Agentes IA) | OpenRouter | Free (LLMs gratuitas) | Coleta de dados para treinamento |
+| LLM (Classificação IA) | OpenRouter | Free (LLMs gratuitas) | Classificação e geração de leads |
 | **Total** | | **R$ 0** | Sem custo inicial |
 
 ### 10.2 Investimento Inicial (Único)
@@ -218,11 +318,11 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 **Cenário inicial:** até 1.400 leads/mês (exemplo: 4 usuários no plano Básico e 1 no plano Pro).
 
-**Execução:** GitHub Actions consegue processar esse volume dentro dos minutos gratuitos.
+**Execução atual:** O backend Express no Render consegue processar esse volume com as chamadas síncronas, dentro do timeout de 40s do scraper.
 
-**Crescimento:** se chegar a milhares de leads/dia, pode migrar para workers dedicados (Heroku, Railway, Render).
+**Limitação:** Como o processamento é síncrono, requisições de muitos leads podem exceder o timeout do Render (30s em plano free). O scraper tem proteção com `Promise.race` e timeout de 40s.
 
-**Distribuição de carga:** dividir tarefas em lotes e manter contador de leads por usuário garante estabilidade.
+**Crescimento futuro:** Para escalar, deve-se implementar fila de tarefas assíncrona com GitHub Actions ou workers dedicados (Railway, Heroku).
 
 ## 11. Estratégia de Aquisição de Clientes
 
@@ -250,7 +350,25 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 Validar a plataforma Nuvuy sem custo inicial, usando:
 
-- **Vercel** → hospedagem do front-end e API
-- **Supabase** → banco de dados fixo para persistência
-- **GitHub Actions** → motor assíncrono para scraping
+- **Vercel** → hospedagem do front-end (HTML/CSS/JS estático)
+- **Render** → hospedagem da API Node.js/Express (backend)
+- **Supabase** → banco de dados PostgreSQL + autenticação
+- **OpenRouter** → classificação inteligente de leads via LLM
 - **Planos e tokens** → monetização clara e escalável
+
+### Diagrama de Arquitetura (Resumido)
+
+```
+Usuário (Navegador)
+    │
+    ├── Vercel ── Front-end (HTML/CSS/JS estático)
+    │                 │
+    │                 ├── Modo conectado: fetch('/api/status') → Render (API)
+    │                 └── Modo simulado: localStorage (nuvuy_simulated_leads)
+    │
+    └── Render ── API Express
+                      │
+                      ├── scraper.js (Google Places → Nominatim → DDG → IA → fallback)
+                      ├── ai.js (OpenRouter LLM → classificação)
+                      └── Supabase (persistência + auth)
+```

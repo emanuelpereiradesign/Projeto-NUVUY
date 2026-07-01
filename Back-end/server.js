@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { evaluateLeadWithAI } = require('./ai');
 const { scrapeLeads } = require('./scraper');
@@ -11,9 +12,27 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Caminho para a pasta front-end (um nível acima do Back-end)
+const frontEndPath = path.join(__dirname, '..', 'Front-end');
+
 // Configuração de CORS (Habilita chamadas a partir das páginas HTML locais)
 app.use(cors());
 app.use(express.json());
+
+// Serve arquivos estáticos do front-end
+app.use(express.static(frontEndPath));
+
+// Redireciona / para /dashboard.html
+app.get('/', (req, res) => {
+  res.redirect('/dashboard.html');
+});
+
+// Rotas limpas (sem .html) para compatibilidade com os links do front-end
+app.get('/dashboard', (req, res) => res.redirect('/dashboard.html'));
+app.get('/login', (req, res) => res.redirect('/login.html'));
+app.get('/configuracoes', (req, res) => res.redirect('/configuracoes.html'));
+app.get('/planos', (req, res) => res.redirect('/planos.html'));
+app.get('/leads-inteligentes', (req, res) => res.redirect('/leads-inteligentes.html'));
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -201,19 +220,28 @@ app.put('/api/user/password', async (req, res) => {
 
 // Rota para criar tarefa e capturar/gerar leads salvando no banco de dados
 app.post('/api/tarefas', async (req, res) => {
+  console.log('\n[API] POST /api/tarefas recebida');
+  console.log('[API] Headers:', JSON.stringify(req.headers.authorization ? 'Bearer ***' : 'Sem token'));
+  console.log('[API] Body:', JSON.stringify({ ...req.body, fontes: req.body.fontes }));
+
   if (!supabase) {
+    console.warn('[API] Supabase não inicializado');
     return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
   }
 
   const token = getAuthToken(req);
   if (!token) {
+    console.warn('[API] Token não fornecido');
     return res.status(401).json({ error: 'Não autorizado. Token de sessão não fornecido.' });
   }
 
   const { nicho, regiao, quantidade, fontes } = req.body;
   if (!nicho || !regiao || !quantidade || !fontes || !Array.isArray(fontes)) {
+    console.warn('[API] Campos obrigatórios faltando');
     return res.status(400).json({ error: 'Nicho, região, quantidade e fontes são obrigatórios.' });
   }
+
+  console.log(`[API] Buscando ${quantidade} leads para "${nicho}" em "${regiao}"`);
 
   try {
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -302,10 +330,10 @@ app.post('/api/tarefas', async (req, res) => {
 
     // Salva os leads qualificados no banco de dados
     for (const lead of qualifiedLeads) {
-      const email = lead.email || `contato@${lead.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
-      const phone = lead.phone || `+55 (11) 9${Math.floor(10000000 + Math.random() * 90000000)}`;
+      const email = lead.email || '';
+      const phone = lead.phone || '';
       const websiteValue = lead.website === 'Não possui' ? '' : lead.website;
-      const address = lead.address || `${regiao} - São Paulo - SP`;
+      const address = lead.address || `${regiao}, Brasil`;
 
       // 5.1 Salva na tabela public.lead
       const { data: leadRow, error: leadErr } = await userClient.from('lead').insert({

@@ -3,8 +3,12 @@
 const SUPABASE_URL = 'SUA_SUPABASE_URL_AQUI';
 const SUPABASE_ANON_KEY = 'SUA_SUPABASE_ANON_KEY_AQUI';
 
-// Endereço padrão da API do servidor Back-end Node.js (Express)
-const BACKEND_API_URL = 'https://nuvuy-api.onrender.com';
+// Detecta automaticamente se está rodando localmente ou em produção
+const isLocal = window.location.hostname === 'localhost' || 
+                window.location.hostname === '127.0.0.1' || 
+                window.location.hostname === '' || 
+                window.location.protocol === 'file:';
+const BACKEND_API_URL = isLocal ? 'http://localhost:3000' : 'https://nuvuy-api.onrender.com';
 
 let supabaseClient = null;
 let isSupabaseConfigured = false;

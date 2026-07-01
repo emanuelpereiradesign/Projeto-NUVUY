@@ -2,24 +2,38 @@
 
 ## 1. Entidades e Atributos
 
-*(Nota: Assumi os campos `ID` como Chaves Primárias (PK) e os campos com prefixo `Id_` como Chaves Estrangeiras (FK), conforme o padrão visual e de nomenclatura do diagrama).*
+*(Nota: Os campos `ID` são Chaves Primárias (PK) e os campos com prefixo `Id_` são Chaves Estrangeiras (FK), conforme o padrão visual e de nomenclatura do diagrama original).*
 
-### 🧑‍💻 `usuário`
-* **ID** *(PK)*
+### 🧑‍💻 `usuario`
+* **ID** *(PK - uuid, ref: auth.users)*
 * Nome
 * Email
 * Data_cadastro
-* Plano
-* Créditos
+* Id_plano *(FK - ref: plano)*
+* Leads_utilizados
+* Saldo_tokens
+
+### 💳 `plano`
+* **ID** *(PK)*
+* Nome
+* Valor
+* Limite_mensal
+* Max_leads_tarefa
+* Max_tarefas_mes
+* Created_at
 
 ### 📋 `Tarefas`
 * **ID** *(PK)*
-* Id_usuario *(FK - ref: usuário)*
-* Id_fonte *(FK - ref: Fonte)*
+* Id_usuario *(FK - ref: usuario)*
 * Data
 * Termo_busca
 * Local
 * Status
+
+### 🔗 `tarefa_fonte`
+* Id_tarefa *(FK - ref: Tarefas)*
+* Id_fonte *(FK - ref: Fonte)*
+* *PK composta: (id_tarefa, id_fonte)*
 
 ### 🌐 `Fonte`
 * **ID** *(PK)*
@@ -40,15 +54,14 @@
 
 ### 📍 `Metrica_google_maps`
 * **ID** *(PK)*
-* id_lead *(FK - ref: Lead)*
+* Id_lead *(FK - ref: Lead, unique)*
 * Qtd_comentarios
-* Nota_avaliacao
+* Nota_avaliacao *(check: 1.0 a 5.0)*
 * Qualidade_imagens
 
 ### 📸 `Metrica_instagram`
-*(Nota: Os atributos Qualidade_postagem, ID_lead e Nicho_atuacao foram extraídos da Página 2, pois as linhas de conexão indicam que pertencem a esta entidade).*
 * **ID** *(PK)*
-* ID_lead *(FK - ref: Lead)*
+* Id_lead *(FK - ref: Lead, unique)*
 * Qtd_seguidores
 * Qtd_postagem
 * Taxa_engajamento
@@ -57,27 +70,29 @@
 
 ### 📊 `Score`
 * **ID** *(PK)*
-* Id_lead *(FK - ref: Lead)*
+* Id_lead *(FK - ref: Lead, unique)*
 * Id_mtc_instagram *(FK - ref: Metrica_instagram)*
 * Id_mtc_mps *(FK - ref: Metrica_google_maps)*
 * Data_analise
-* Pontuacao
-* Classificacao
+* Pontuacao *(check: 0 a 100)*
+* Classificacao *(check: 'quente', 'morno', 'frio')*
 * Justificativa_IA
+* *Constraint: classificação deve corresponder à faixa de pontuação (71-100 = quente, 41-70 = morno, 0-40 = frio)*
 
 ---
 
 ## 2. Relacionamentos
 
-Abaixo estão as relações entre as entidades e suas respectivas cardinalidades (conforme indicado pelos números `1`, `N`, `0` nos losangos do diagrama):
+* **Assina:** `usuario` **(N) <-> (1)** `plano`
+  * *Um usuário possui um plano; um plano pode ser contratado por vários usuários.*
 
-* **Cria:** `usuário` **(1) <-> (N)** `Tarefas`
+* **Cria:** `usuario` **(1) <-> (N)** `Tarefas`
   * *Um usuário pode criar várias tarefas.*
 
-* **Utiliza:** `Tarefas` **(N) <-> (N)** `Fonte`
-  * *Várias tarefas podem utilizar várias fontes (Relação de Muitos-para-Muitos).*
+* **Utiliza:** `Tarefas` **(N) <-> (N)** `Fonte` *(via `tarefa_fonte`)*
+  * *Várias tarefas podem utilizar várias fontes (Muitos-para-Muitos).*
 
-* **Captura:** *(escrito como "Captuira" no diagrama)* `Tarefas` **(1) <-> (N)** `Lead`
+* **Captura:** `Tarefas` **(1) <-> (N)** `Lead`
   * *Uma tarefa é responsável pela captura de vários leads.*
 
 * **Possui (Lead -> Score):** `Lead` **(1) <-> (1)** `Score`
@@ -96,7 +111,17 @@ Abaixo estão as relações entre as entidades e suas respectivas cardinalidades
   * *As métricas do Instagram são utilizadas para gerar a avaliação do Score.*
 
 ---
-## ⚠️ Observações de Implementação
-1. **Erro de digitação:** O relacionamento entre `Tarefas` e `Lead` está grafado como "Captuira". Recomenda-se corrigir para "Captura" na implementação.
-2. **Entidade Score:** O `Score` centraliza as chaves estrangeiras (`Id_mtc_instagram`, `Id_mtc_mps`, `Id_lead`), alinhando-se corretamente aos relacionamentos "Avalia" e "Possui".
-3. **Tabela Intermediária (N:N):** A relação entre `Tarefas` e `Fonte` é `N:N` (Muitos para Muitos). Na conversão para o banco de dados físico (SQL), será necessária a criação de uma tabela intermediária (ex: `Tarefa_Fonte`).
+
+## 3. Observações de Implementação
+
+1. **Trigger `on_auth_user_created`:** Quando um novo usuário se cadastra via Supabase Auth (`auth.users`), um trigger dispara a função `handle_new_user()`, que insere automaticamente um registro em `public.usuario` vinculado ao plano **Gratuito**.
+
+2. **Entidade `tarefa_fonte`:** Tabela intermediária que implementa o relacionamento N:N entre `Tarefas` e `Fonte`, substituindo o campo `Id_fonte` direto na tabela `Tarefas` (que não existe na implementação real).
+
+3. **Entidade `plano`:** Armazena os planos de assinatura (Gratuito R$0, Básico R$49, Pro R$97) com seus limites. Referenciada por `usuario.id_plano`.
+
+4. **Score - validação cruzada:** A tabela `score` possui uma constraint que garante que a `classificacao` corresponda exatamente à faixa da `pontuacao`: `quente` (71-100), `morno` (41-70), `frio` (0-40).
+
+5. **RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança garantindo que cada usuário veja e manipule apenas seus próprios dados. As políticas utilizam `auth.uid()` e joins para verificar a propriedade através da cadeia `usuario -> tarefas -> lead`.
+
+6. **Erro de digitação:** O relacionamento entre `Tarefas` e `Lead` estava grafado como "Captuira" no diagrama original. Na implementação utiliza-se "Captura".

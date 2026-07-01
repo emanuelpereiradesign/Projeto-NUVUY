@@ -4,7 +4,7 @@
     { "source": "/", "destination": "/login", "permanent": false }
   ],
   "rewrites": [
-    { "source": "/dashboard", "destination": "/Front-end/index.html" },
+    { "source": "/dashboard", "destination": "/Front-end/dashboard.html" },
     { "source": "/login", "destination": "/Front-end/login.html" },
     { "source": "/configuracoes", "destination": "/Front-end/configuracoes.html" },
     { "source": "/planos", "destination": "/Front-end/planos.html" },

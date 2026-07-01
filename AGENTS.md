@@ -1,79 +1,115 @@
-# Nuvuy
+# Nuvuy Agent Guide
 
-**Idioma:** Português (pt-BR) — todo texto de UI, nomes e este arquivo.
+## Essentials
+- **Language**: Portuguese (pt-BR) for UI, names, and this file.
+- **Hybrid mode**: 
+  - **Connected**: Frontend talks to Node.js/Express backend on port 3000 (`Back-end/`), which talks to Supabase and OpenRouter LLM.
+  - **Simulation**: If backend is offline, frontend runs fully static, persisting leads in `localStorage` (`nuvuy_simulated_leads`).
 
-## Essência
+## Quick Start
+- **Frontend only**: open `Front-end/dashboard.html` in a browser (`start Front-end/dashboard.html` on Windows).
+- **Backend (optional)**:
+  ```bash
+  cd Back-end
+  npm install
+  npm run dev   # starts server on :3000
+  ```
+- Requires a `.env` file in `Back-end/` with Supabase and OpenRouter keys.
 
-Dashboard de gestão de leads com suporte a dois modos de operação (Híbrido):
-1. **Modo Conectado (Back-end Ativo):** Comunica-se com o servidor Node.js/Express na porta `3000` (`Back-end/`), que gerencia dados no Supabase e integra a inteligência SDR via OpenRouter LLM.
-2. **Modo Simulação (Fallback / Local):** Se o back-end estiver inativo, o front-end opera de forma 100% estática localmente, gerando e persistindo leads no `localStorage` (`nuvuy_simulated_leads`).
+## Vercel Deployment
+- `vercel.json` in repo root defines friendly routes:
+  - `/` → `/login`
+  - `/dashboard` → `Front-end/dashboard.html`
+  - `/login` → `Front-end/login.html`
+  - `/configuracoes` → `Front-end/configuracoes.html`
+  - `/planos` → `Front-end/planos.html`
+  - `/leads-inteligentes` → `Front-end/leads-inteligentes.html`
+- Set **Root Directory** to repository root (`.`). Deploy with `git push` to `main`.
 
-## Como visualizar
-
-```
-# Executar o Front-end diretamente no navegador
-start Front-end/dashboard.html
-
-# Para rodar o Back-end (opcional, requer .env configurado)
-cd Back-end
-npm install
-npm run dev
-```
-
-## Estrutura do Projeto
-
+## Project Layout
 ```
 PROJETO-NUVUY/
-├── Front-end/
-│   ├── dashboard.html                # dashboard (Kanban de leads)
-│   ├── leads-inteligentes.html       # métricas Chart.js, listagem de leads, detalhamento e Roteiro de Abordagem IA
-│   ├── login.html                    # login/cadastro (glassmorphism, sem sidebar)
-│   ├── configuracoes.html            # perfil, senha, predefinições do agente
-│   ├── planos.html                   # assinatura e compra de recarga de créditos
-│   ├── css/style.css                 # folha única com estilização detalhada de métricas
-│   ├── js/script.js                  # JS puro compartilhado e unificado entre TODAS as páginas
-│   ├── js/supabase.js                # URL e chaves cliente do Supabase
-│   └── assets/                       # logos e fundos
-└── Back-end/
-    ├── server.js                     # servidor Express, rotas da API e persistência Supabase
-    ├── ai.js                         # módulo de inteligência SDR com OpenRouter LLM e simulação estruturada
-    ├── scraper.js                    # módulo Web Scraper integrado consultando a API B2B OpenStreetMap Nominatim
-    ├── .env                          # chaves de API e URLs de banco de dados
-    └── package.json                  # scripts e dependências do back-end
+├─ Front-end/
+│   ├─ dashboard.html          # Kanban dashboard
+│   ├ leads-inteligentes.html  # metrics, leads list, IA approach script
+│   ├ login.html               # login/cadastro (glassmorphism, no sidebar)
+│   ├ configuracoes.html       # profile, password, agent presets
+│   ├ planos.html              # subscription & credit top‑up
+│   ├ css/style.css            # global styling (grid, variables, dark/glass)
+│   ├ js/script.js             # shared vanilla JS (session, checks, toast)
+│   ├ js/supabase.js           # Supabase client init
+│   └─ assets/                 # logos, backgrounds
+├─ Back-end/
+│   ├ server.js                # Express API + Supabase
+│   ├ ai.js                    # SDR intelligence (OpenRouter LLM + fallback)
+│   ├ scraper.js               # OSM Nominatim scraper (Google Maps & Instagram data)
+│   ├ .env                     # API keys & DB URL
+│   └─ package.json            # npm scripts & deps
+├─ Tabelas/
+│   └─ *.sql                   # DDL for 8 tables + trigger
+└─ ESTRUTURA B.md              # full ER diagram & relationships
 ```
 
-## CDNs (sem npm no front-end)
+## Key Conventions
+- **CDNs only** (no npm in frontend):
+  - Google Fonts (Inter, Poppins) via `<link>` on all pages.
+  - Chart.js via CDN only in `leads-inteligentes.html`.
+  - Supabase JS client via CDN on all pages.
+- **JS**: Vanilla JS (`DOMContentLoaded`, `querySelector`, `addEventListener`), consistent error fallbacks.
+- **CSS**: CSS Grid (`stats-grid`, `leads-grid`), CSS variables in `:root`, dark theme, glassmorphism.
+- **Leads UI**: 
+  - `quente` = `#00A6FF` (blue)
+  - `morno` = `#D900FF` (purple)
+  - `frio` = `#8E8E93` (gray)
+- **Toast**: `showToast(message, type)` auto‑dismisses after 4 s.
+- **Password minimum**: 6 characters (checked in settings UI).
 
-- **Google Fonts** (Inter, Poppins) — via `<link>` em todas as páginas
-- **Chart.js** — `<script src="https://cdn.jsdelivr.net/npm/chart.js">` só em `leads-inteligentes.html`
-- **Supabase JS Client** — `<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>` em todas as páginas para controle de sessão local
+## Architecture & Data Flow
+- **Server detection**: Frontend calls `fetch('/api/status')` on load; if reachable uses backend API, else falls back to `localStorage` + direct Supabase client.
+- **Session handling**: `checkSession()` looks for `nuvuy_access_token` in `localStorage` (backend mode) or Supabase session (fallback). Redirects to `login.html` if not logged in, otherwise to `dashboard.html`.
+- **Logout**: 
+  1. Click “Sair” → confirm modal.
+  2. Calls `signOut()` on Supabase (if configured).
+  3. Removes `nuvuy_user_name`, `nuvuy_access_token`, `nuvuy_refresh_token` from `localStorage`.
+  4. Redirects to `login.html`.
+  *Important*: If those tokens are not cleared, `checkSession()` will redirect back to dashboard, blocking logout.
+- **Web scraper** (`scraper.js`): hits OSM Nominatim API for real Google Maps‑like results; if fewer results than requested, pads with realistic local data.
+- **Cross‑page bridge**: `window.addLeadsToIntelligentPanel()` updates the intelligent leads panel and Chart.js graphs after a capture finishes in the dashboard.
+- **Justificativa/Abordagem**: Stored as JSON string in `score.justificativa_ia`; frontend parses and renders justification, approach script, Maps comments, Instagram tags separately.
+- **Dynamic URLs**: `getPageUrl()` in `script.js` returns `dashboard.html` for `file:` protocol (local) and `/dashboard` for HTTP(S) (Vercel). Sidebar `<a>` tags are rewritten on `DOMContentLoaded` when running on Vercel.
 
-## Arquitetura e Fluxo de Dados
+## Database (Supabase / PostgreSQL)
+- See `ESTRUTURA B.md` and `Tabelas/*.sql` for full schema (8 tables + trigger).
+- Key tables:
+  - `usuario` – extends `auth.users` with `id_plano`, `saldo_tokens`, `leads_utilizados`.
+  - `plano` – subscription tiers (Free, Basic, Pro).
+  - `tarefas` – user‑initiated searches.
+  - `fonte` – capture sources (Google Maps, Instagram).
+  - `tarefa_fonte` – N‑M link between tasks and sources.
+  - `lead` – captured leads.
+  - `metrica_google_maps` / `metrica_instagram` – platform‑specific metrics.
+  - `score` – lead score (0‑100) & classification; includes `check_classificacao_faixa` constraint.
+- **Trigger**: `on_auth_user_created` creates a `public.usuario` row with free plan on Supabase Auth sign‑up.
+- **RLS**: All tables have row‑level security policies restricting rows to `auth.uid()`.
 
-- **Detecção de Estado do Servidor:** O front-end faz um ping em `fetch('/api/status')` na inicialização para decidir se chamará as APIs do Express ou se usará o simulador do `localStorage` e o cliente direto do Supabase.
-- **Integração do Web Scraper:** A captação real de leads de Google Maps no back-end ocorre através do módulo `scraper.js`, que faz requisições assíncronas para a API aberta de busca geográfica e B2B do OpenStreetMap (Nominatim API), trazendo estabelecimentos locais, endereços e contatos reais sem depender de chaves pagas. Se a quantidade retornada for menor do que o limite solicitado, a lista é automaticamente completada por uma geração estruturada realista local.
-- **Ponte entre páginas:** `window.addLeadsToIntelligentPanel()` — atualiza a listagem de leads inteligentes e gráficos do Chart.js imediatamente após a finalização de uma captação no dashboard.
-- **Estrutura de Justificativa/Abordagem:** O campo `justificativa_ia` no banco de dados (tabela `score`) armazena um objeto JSON stringificado. O front-end realiza o parse para renderizar de forma separada a justificativa, o roteiro de abordagem, os comentários do maps e as tags do Instagram.
+## Lead Scoring & Temperature (DB‑enforced)
+- Score 0‑100 reflects likelihood of closing.
+  - **Cold (0‑40 %)**: Strong digital presence, high Maps rating, Instagram >15k followers & ~150 posts → low close chance.
+  - **Warm (41‑70 %)**: Moderate presence, Instagram 3k‑7k followers, slowly growing Maps rating.
+  - **Hot (71‑100 %)**: No website, no visual identity, Instagram <2k followers → highest priority for full‑service pitches.
+- Constraint `check_classificacao_faixa` guarantees the classification matches the score.
 
-## Web Scraper e Inteligência SDR (Métricas Coletadas)
+## Testing / Linting / Building
+- No build step for frontend (plain HTML/CSS/JS).
+- Backend: 
+  - Lint: `npm run lint` (if configured in `package.json`).
+  - Test: `npm test` (if defined).
+  - Dev server: `npm run dev` (already listed above).
 
-O sistema analisa e entrega as seguintes informações dos leads capturados:
-1. **Google Maps:** Localidade no Maps, qualidade de imagens (Excelente/Média/Pobre), avaliação (nota e contagem), comentário positivo destaque, comentário negativo destaque, telefone, e-mail, WhatsApp (com link direto de clique `wa.me`) e site.
-   - *Regra Crítica do Site:* Se o lead não possuir website, recebe a tag vermelha **"NÃO POSSUI SITE"** no card do dashboard e no painel de detalhamento.
-2. **Instagram:** Nome do perfil, seguidores, postagens, contas que segue, média de curtidas e comentários (taxa de engajamento), qualidade visual das imagens do feed, coerência temática com o nicho e impacto das publicações (bom/ruim).
-
-## Classificação de Temperatura (Rígida via DB e AI)
-
-A pontuação (Score de 0 a 100) reflete rigidamente a chance de fechamento:
-- **Lead Frio (0% a 40%):** Presença digital muito bem estruturada, avaliações excelentes no Maps, Instagram consolidado com mais de 15.000 seguidores e ~150 posts. Baixo potencial de fechamento rápido.
-- **Lead Morno (41% a 70%):** Presença digital mediana (Instagram entre 3.000 e 7.000 seguidores), avaliações no Maps crescendo lentamente. Foco em otimizar e corrigir o que já funciona.
-- **Lead Quente (71% a 100%):** Sem site, sem identidade visual, começando do absoluto zero e Instagram abaixo de 2.000 seguidores. Máxima prioridade para venda de pacotes completos.
-
-## Convenções do código
-
-- **CSS:** Grid layout (`stats-grid`, `leads-grid`), variáveis no `:root`, temas escuros e glassmorphism.
-- **JS:** Vanilla JS puro — `DOMContentLoaded`, `querySelector`, `addEventListener` e tratamento de erros com fallbacks consistentes.
-- **Leads:** Três níveis visuais: `quente` (azul `#00A6FF`), `morno` (roxo `#D900FF`), `frio` (cinza `#8E8E93`).
-- **Toast:** `showToast(msg, type)` com fechamento automático em **4s**.
-- **Segurança da Senha:** Validação mínima de 6 caracteres na interface de configurações.
-
+## Tips for Agents
+- When starting work, first check if backend is reachable (`fetch('/api/status')`).
+- For local debugging without backend, rely on `localStorage` key `nuvuy_simulated_leads`.
+- Remember to clear the three `nuvuy_*` tokens in `localStorage` on logout to avoid silent redirects.
+- All frontend styling lives in `css/style.js`; avoid inline styles.
+- Any new page must import `js/supabase.js` and `js/script.js` for session handling.
+- When adding a new backend route, update `server.js` and remember to protect it with Supabase auth (check `req.user`).

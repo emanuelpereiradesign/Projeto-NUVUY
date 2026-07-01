@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Limpa dados antigos de testes que ficaram persistidos no localStorage
   const STORAGE_VERSION_KEY = 'nuvuy_storage_version';
-  const CURRENT_STORAGE_VERSION = '2.1';
+  const CURRENT_STORAGE_VERSION = '2.2';
   if (localStorage.getItem(STORAGE_VERSION_KEY) !== CURRENT_STORAGE_VERSION) {
     localStorage.removeItem('nuvuy_simulated_leads');
     localStorage.setItem(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION);
@@ -201,6 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
       config.body = JSON.stringify(body);
     }
     const response = await fetch(`${window.BACKEND_API_URL}${endpoint}`, config);
+    if (response.status === 401) {
+      console.warn('[Auth] Sessão expirada ou inválida. Redirecionando para login...');
+      localStorage.removeItem('nuvuy_access_token');
+      localStorage.removeItem('nuvuy_refresh_token');
+      localStorage.removeItem('nuvuy_user_name');
+      window.location.href = getPageUrl('login');
+      return;
+    }
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Erro na requisição ao servidor.');
@@ -222,6 +230,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // Session check and redirect (Back-end or direct Supabase client fallback)
   const checkSession = async () => {
     const isLoginPage = window.location.pathname.includes('login.html') || window.location.pathname.endsWith('/login');
+    
+    // Se estiver na página de login, limpa tokens inválidos para evitar loop
+    if (isLoginPage) {
+      localStorage.removeItem('nuvuy_access_token');
+      localStorage.removeItem('nuvuy_refresh_token');
+      localStorage.removeItem('nuvuy_user_name');
+    }
     
     // 1. Tenta verificar se o Back-end está ativo e responde online
     const backendActive = await isBackendActive();
@@ -323,13 +338,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (backendActive && token) {
         try {
           const res = await callBackend('/api/leads', 'GET', null, token);
-          leads = res.data;
+          leads = res.data || [];
         } catch (err) {
           console.error('Erro ao carregar leads do servidor:', err);
-          leads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
         }
-      } else {
-        leads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
       }
 
       // Limpa os cards hardcoded na inicialização
@@ -451,11 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
 
-            // Limpeza local no localStorage
-            const simLeads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
-            const updatedSimLeads = simLeads.filter(l => l.type !== columnType);
-            localStorage.setItem('nuvuy_simulated_leads', JSON.stringify(updatedSimLeads));
-
             // Calculate how many were removed to update stats
             const countRemoved = cards.length;
             cards.forEach(card => card.remove());
@@ -497,9 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // Limpeza local no localStorage
-          localStorage.setItem('nuvuy_simulated_leads', JSON.stringify([]));
-
+          // Remove cards from DOM
           const countQuente = document.querySelectorAll('.lead-column[data-column="quente"] .lead-card').length;
           const countMorno = document.querySelectorAll('.lead-column[data-column="morno"] .lead-card').length;
           const countFrio = document.querySelectorAll('.lead-column[data-column="frio"] .lead-card').length;
@@ -655,10 +660,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       const token = localStorage.getItem('nuvuy_access_token');
+      console.log('[DEBUG] Token encontrado?', !!token);
+      console.log('[DEBUG] BACKEND_API_URL:', window.BACKEND_API_URL);
       if (token) {
         try {
           const activeSourceTypes = Array.from(document.querySelectorAll('.btn-source.active'))
             .map(btn => btn.getAttribute('data-source'));
+          console.log('[DEBUG] Chamando API /api/tarefas...');
 
           const res = await callBackend('/api/tarefas', 'POST', {
             nicho,
@@ -668,9 +676,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }, token);
 
           const leads = res.data;
-          
-          const existingLeads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
-          localStorage.setItem('nuvuy_simulated_leads', JSON.stringify([...leads, ...existingLeads]));
+
+          if (!leads || leads.length === 0) {
+            showToast('Nenhum lead real encontrado para esta busca. Tente outro nicho ou região.', 'warning');
+            resetForm();
+            return;
+          }
 
           let countQuente = 0;
           let countMorno = 0;
@@ -690,45 +701,23 @@ document.addEventListener('DOMContentLoaded', () => {
             window.addLeadsToIntelligentPanel(leads);
           }
 
-          showToast(`${leads.length} leads capturados e gravados no Supabase!`, 'success');
+          showToast(`${leads.length} leads reais capturados!`, 'success');
           resetForm();
           return;
         } catch (err) {
-          console.log("Erro ao salvar no banco via Back-end, rodando em modo simulação...", err.message);
+          console.error('[Captura] Erro:', err.message);
+          showToast(`Erro na captura: ${err.message}`, 'error');
+          resetForm();
+          return;
         }
+      } else {
+        showToast('Sessão expirada. Faça login novamente.', 'error');
+        localStorage.removeItem('nuvuy_access_token');
+        localStorage.removeItem('nuvuy_refresh_token');
+        localStorage.removeItem('nuvuy_user_name');
+        window.location.href = getPageUrl('login');
+        return;
       }
-
-      // Fallback local simulation if backend is offline or not authenticated
-      const delay = activeSources.length > 1 ? 3000 : 1500;
-      setTimeout(() => {
-        const simulatedLeads = generateSimulatedLeads(nicho, regiao, quantidade);
-        
-        // Salva os leads simulados no localStorage para persistência
-        const existingSimLeads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
-        const updatedSimLeads = [...simulatedLeads, ...existingSimLeads];
-        localStorage.setItem('nuvuy_simulated_leads', JSON.stringify(updatedSimLeads));
-
-        let countQuente = 0;
-        let countMorno = 0;
-        let countFrio = 0;
-
-        simulatedLeads.forEach(lead => {
-          if (lead.type === 'quente') countQuente++;
-          if (lead.type === 'morno') countMorno++;
-          if (lead.type === 'frio') countFrio++;
-          
-          insertLeadCardIntoDOM(lead);
-        });
-
-        updateTotalStats(countQuente, countMorno, countFrio);
-
-        if (typeof window.addLeadsToIntelligentPanel === 'function') {
-          window.addLeadsToIntelligentPanel(simulatedLeads);
-        }
-
-        showToast(`[SIMULAÇÃO] ${simulatedLeads.length} leads capturados em ${activeSources.join(' e ')}!`, 'success');
-        resetForm();
-      }, delay);
     });
   }
 
@@ -739,101 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!str) return '';
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return String(str).replace(/[&<>"']/g, c => map[c]);
-  }
-
-  // Generate simulated leads data
-  function generateSimulatedLeads(nicho, regiao, qty) {
-    const nichoFormatted = nicho.trim().toUpperCase();
-    
-    // Helper to format title case
-    const toTitleCase = (str) => {
-      return str.toLowerCase().replace(/(?:^|\s)\S/g, l => l.toUpperCase());
-    };
-    
-    const nichoTitle = toTitleCase(nicho);
-    const suffixes = ["Concept", "Prime", "Express", "VIP", "Solutions", "Premium", "Style", "Group", "Network", "Moda", "Negócios"];
-    const leads = [];
-    const todayStr = new Date().toLocaleDateString('pt-BR');
-
-    for (let i = 0; i < qty; i++) {
-      const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
-      const leadTitle = `${nichoTitle} ${suffix} ${i + 1}`;
-      
-      const rand = Math.random();
-      let type = 'frio';
-      let percent = Math.floor(15 + Math.random() * 25); // 0-40% Frio
-      let followers = 0;
-      let postsCount = 0;
-      let followingCount = 0;
-      let website = '';
-      let simulatedRating = '4.0';
-
-      if (rand > 0.4) {
-        type = 'quente';
-        percent = Math.floor(71 + Math.random() * 29); // 71% - 100%
-        followers = Math.floor(100 + Math.random() * 1800); // abaixo de 2000
-        postsCount = Math.floor(2 + Math.random() * 15);
-        followingCount = Math.floor(50 + Math.random() * 400);
-        website = 'Não possui'; // Quente = Sem site (do absoluto zero!)
-        simulatedRating = (3.0 + Math.random() * 1.0).toFixed(1);
-      } else if (rand > 0.1) {
-        type = 'morno';
-        percent = Math.floor(41 + Math.random() * 29); // 41% - 70%
-        followers = Math.floor(3000 + Math.random() * 4000); // 3000 a 7000
-        postsCount = Math.floor(20 + Math.random() * 60);
-        followingCount = Math.floor(200 + Math.random() * 800);
-        website = Math.random() > 0.5 ? `www.${leadTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br` : 'Não possui';
-        simulatedRating = (3.8 + Math.random() * 0.7).toFixed(1);
-      } else {
-        type = 'frio';
-        percent = Math.floor(10 + Math.random() * 30); // 10% - 40%
-        followers = Math.floor(15000 + Math.random() * 25000); // acima de 15000
-        postsCount = Math.floor(120 + Math.random() * 60); // ~150 posts
-        followingCount = Math.floor(500 + Math.random() * 1500);
-        website = `www.${leadTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`;
-        simulatedRating = (4.5 + Math.random() * 0.5).toFixed(1);
-      }
-
-      const phone = `+55 (11) 9${Math.floor(10000000 + Math.random() * 90000000)}`;
-
-      const simulatedData = {
-        justificativa: `[SIMULADO] O lead ${leadTitle} foi classificado como ${type.toUpperCase()} devido ao seu posicionamento digital com ${followers} seguidores no Instagram e nota de ${simulatedRating} no Google Maps.`,
-        abordagem: type === 'quente' 
-          ? `Olá Emanuel da Nuvuy aqui! Percebi que a ${leadTitle} não possui um site próprio e tem menos de 2mil seguidores. Podemos criar uma identidade visual forte e um site profissional para dobrar suas conversões locais. Aceita um bate-papo de 5 minutos?` 
-          : (type === 'morno' 
-            ? `Olá! Acompanhamos a ${leadTitle} no Maps e Instagram. Identificamos pontos de melhoria na velocidade de resposta e anúncios para impulsionar seus posts atuais. Gostaria de receber um roteiro gratuito?`
-            : `Olá! Seu posicionamento digital com mais de 15k seguidores é muito bom. Podemos te ajudar com automações avançadas de atendimento de leads e funil de vendas integrado.`),
-        maps_comentarios_positivos: parseFloat(simulatedRating) >= 4.2 ? "Bom atendimento, produtos de alta qualidade e localização acessível." : "Espaço agradável.",
-        maps_comentarios_negativos: parseFloat(simulatedRating) < 4.0 ? "Demora no atendimento e falta de resposta nas redes sociais." : "Preço um pouco elevado comparado aos concorrentes.",
-        maps_whatsapp: phone,
-        insta_coerencia_nicho: followers < 2000 ? "Baixa (conteúdo desalinhado)" : (followers < 10000 ? "Média" : "Alta"),
-        insta_qualidade_imagens: followers < 2000 ? "Material amador e sem paleta de cores" : "Profissional e bem produzidas",
-        insta_impacto_postagem: followers < 2000 ? "Ruim (baixo engajamento)" : "Bom (impacto positivo)"
-      };
-
-      const source = Math.random() > 0.5 ? "Google Maps" : "Instagram";
-
-      leads.push({
-        id: 'sim-' + Math.random().toString(36).substring(2, 11),
-        title: leadTitle,
-        percent: percent,
-        type: type,
-        category: nichoFormatted,
-        rating: simulatedRating,
-        source: source,
-        phone: phone,
-        email: `contato@${leadTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}.com.br`,
-        instagram: `@${leadTitle.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-        website: website,
-        address: `${regiao ? regiao : 'Av. Paulista, 1000'} - São Paulo - SP`,
-        date: todayStr,
-        justificativa_ia: JSON.stringify(simulatedData),
-        mapsMetrics: source === "Google Maps" ? { qtd_comentarios: Math.floor(10 + Math.random() * 120), nota_avaliacao: simulatedRating, qualidade_imagens: type === 'quente' ? 'Pobre' : 'Excelente' } : null,
-        instaMetrics: source === "Instagram" ? { qtd_seguidores: followers, qtd_postagem: postsCount, taxa_engajamento: parseFloat((1.2 + Math.random() * 8.5).toFixed(2)), qualidade_postagem: type === 'quente' ? 'Baixa' : 'Alta', nicho_atuacao: nichoFormatted } : null
-      });
-    }
-
-    return leads;
   }
 
   // Insert Lead Card DOM
@@ -849,6 +743,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Uppercase label mapping
     const typeLabel = lead.type.toUpperCase();
     
+    const hasPhone = lead.phone && lead.phone.trim() !== '' && lead.phone !== 'Não possui';
+    const hasSite = lead.website && lead.website.trim() !== '' && lead.website !== 'Não possui';
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.title + ' ' + lead.address)}`;
+
     card.innerHTML = `
       <div class="lead-card-header">
         <span class="lead-title">${escapeHtml(lead.title)}</span>
@@ -870,18 +768,42 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="lead-card-actions">
         <div class="action-icons">
-          <button class="btn-action-icon" title="Ligar para lead">
-            <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
-              <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          ${hasPhone ? `
+            <a href="tel:${escapeHtml(lead.phone)}" class="btn-action-icon" title="Ligar para lead: ${escapeHtml(lead.phone)}">
+              <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+          ` : `
+            <button class="btn-action-icon disabled" title="Sem telefone de contato" style="opacity: 0.35; cursor: not-allowed;" disabled>
+              <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                <path d="M8.44997 7.79136C6.98642 9.33138 3.25331 5.63167 4.72236 4.08555C5.61943 3.14137 4.60625 2.06275 4.04528 1.26891C2.99238 -0.219163 0.681877 1.83541 0.751541 3.14259C0.973364 7.26519 5.43244 12.1505 9.75035 11.7239C11.1008 11.5907 12.653 9.1511 11.1039 8.25948C10.329 7.81336 9.26515 6.93335 8.44997 7.79075" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          `}
+          ${hasSite ? `
+            <a href="https://${escapeHtml(lead.website.replace(/^https?:\/\//i, ''))}" target="_blank" class="btn-action-icon" title="Ver website: ${escapeHtml(lead.website)}">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="7" cy="7" r="6"/>
+                <line x1="1" y1="7" x2="13" y2="7"/>
+                <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
+              </svg>
+            </a>
+          ` : `
+            <button class="btn-action-icon disabled" title="Sem website" style="opacity: 0.35; cursor: not-allowed;" disabled>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="7" cy="7" r="6"/>
+                <line x1="1" y1="7" x2="13" y2="7"/>
+                <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
+              </svg>
+            </button>
+          `}
+          <a href="${escapeHtml(mapsUrl)}" target="_blank" class="btn-action-icon" title="Ver no Google Maps">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
             </svg>
-          </button>
-          <button class="btn-action-icon" title="Ver website">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="7" cy="7" r="6"/>
-              <line x1="1" y1="7" x2="13" y2="7"/>
-              <path d="M7 1a8.5 8.5 0 0 1 2.5 6A8.5 8.5 0 0 1 7 13 8.5 8.5 0 0 1 4.5 7 8.5 8.5 0 0 1 7 1Z"/>
-            </svg>
-          </button>
+          </a>
         </div>
         <button class="btn-capture">EFETUAR CAPTAÇÃO</button>
       </div>
@@ -925,24 +847,54 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) return;
 
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = `toast toast-${type}`;
     
     let iconHTML = '';
     if (type === 'success') {
       iconHTML = `
-        <div class="toast-icon">
+        <div class="toast-icon toast-icon-success">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
         </div>
       `;
-    } else {
+    } else if (type === 'info') {
       iconHTML = `
-        <div class="toast-icon" style="color: #8E8E93; background: rgba(142, 142, 147, 0.1);">
+        <div class="toast-icon toast-icon-info">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </div>
+      `;
+    } else if (type === 'warning') {
+      iconHTML = `
+        <div class="toast-icon toast-icon-warning">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+      `;
+    } else if (type === 'error') {
+      iconHTML = `
+        <div class="toast-icon toast-icon-error">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        </div>
+      `;
+    } else {
+      iconHTML = `
+        <div class="toast-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
         </div>
       `;
@@ -950,8 +902,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     toast.innerHTML = `
       ${iconHTML}
-      <span>${message}</span>
-      <button class="toast-close">&times;</button>
+      <span class="toast-message">${message}</span>
+      <button class="toast-close" aria-label="Fechar">&times;</button>
+      <div class="toast-progress"></div>
     `;
 
     container.appendChild(toast);
@@ -1102,6 +1055,10 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.innerHTML = `<span class="spinner"></span> <span>Enviando...</span>`;
       }
 
+      const wakeupTimer = setTimeout(() => {
+        showToast('Estamos carregando seus dados e inicializando o servidor. Aguarde um momento...', 'info');
+      }, 2500);
+
       // Detecta se o backend está online
       const backendActive = await isBackendActive();
 
@@ -1110,20 +1067,25 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         if (backendActive) {
           await callBackend('/api/auth/recover', 'POST', { email, redirectTo: redirectToUrl });
+          clearTimeout(wakeupTimer);
           showToast(`Instruções de recuperação enviadas para: ${email}`, 'success');
         } else if (window.isSupabaseConfigured && window.supabaseClient) {
           const { error } = await window.supabaseClient.auth.resetPasswordForEmail(email, {
             redirectTo: redirectToUrl
           });
+          clearTimeout(wakeupTimer);
           if (error) throw error;
           showToast(`Instruções de recuperação enviadas para: ${email}`, 'success');
         } else {
+          clearTimeout(wakeupTimer);
           // Modo offline/simulado
           showToast(`[SIMULAÇÃO] Instruções de recuperação enviadas para: ${email}`, 'success');
         }
       } catch (error) {
+        clearTimeout(wakeupTimer);
         showToast(`Erro ao recuperar senha: ${error.message || 'Falha na requisição'}`, 'info');
       } finally {
+        clearTimeout(wakeupTimer);
         if (submitBtn) {
           submitBtn.removeAttribute('disabled');
           submitBtn.innerHTML = originalHTML;
@@ -1149,9 +1111,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const inputs = formLogin.querySelectorAll('input, button');
       inputs.forEach(input => input.setAttribute('disabled', 'true'));
 
+      const wakeupTimer = setTimeout(() => {
+        showToast('Estamos carregando seus dados e inicializando o servidor. Aguarde um momento...', 'info');
+      }, 2500);
+
       try {
         // Tenta fazer login via backend ou client-side Supabase
         const data = await window.auth.login(email, password);
+        clearTimeout(wakeupTimer);
         
         const fullName = data.user?.user_metadata?.full_name || email.split('@')[0];
         localStorage.setItem('nuvuy_user_name', fullName);
@@ -1167,26 +1134,11 @@ document.addEventListener('DOMContentLoaded', () => {
           window.location.href = getPageUrl('dashboard');
         }, 1000);
       } catch (error) {
-        const errorMsg = error.message || '';
-        const isConnectionError = errorMsg.includes('fetch') || errorMsg.includes('Failed to fetch') || errorMsg.includes('servidor') || errorMsg.includes('configurado') || errorMsg.includes('inicializado') || errorMsg.includes('NetworkError');
-        
-        if (isConnectionError && !window.isSupabaseConfigured) {
-          // Fallback simulated login
-          setTimeout(() => {
-            const mockName = email.split('@')[0];
-            localStorage.setItem('nuvuy_user_name', mockName);
-            showToast(`[SIMULAÇÃO] Bem-vindo de volta! Redirecionando...`, 'success');
-            
-            setTimeout(() => {
-              window.location.href = getPageUrl('dashboard');
-            }, 1000);
-          }, 1500);
-        } else {
-          showToast(`Erro ao entrar: ${error.message || 'Credenciais inválidas'}`, 'info');
-          submitBtn.classList.remove('loading');
-          submitBtn.innerHTML = `<span>Entrar</span>`;
-          inputs.forEach(input => input.removeAttribute('disabled'));
-        }
+        clearTimeout(wakeupTimer);
+        showToast(`Erro ao entrar: ${error.message || 'Credenciais inválidas'}`, 'error');
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = `<span>Entrar</span>`;
+        inputs.forEach(input => input.removeAttribute('disabled'));
       }
     });
   }
@@ -1209,9 +1161,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const inputs = formSignup.querySelectorAll('input, button');
       inputs.forEach(input => input.setAttribute('disabled', 'true'));
 
+      const wakeupTimer = setTimeout(() => {
+        showToast('Estamos carregando seus dados e inicializando o servidor. Aguarde um momento...', 'info');
+      }, 2500);
+
       try {
         // Tenta cadastrar via backend ou client-side Supabase
         const data = await window.auth.signup(email, password, name);
+        clearTimeout(wakeupTimer);
         
         localStorage.setItem('nuvuy_user_name', name);
         
@@ -1235,25 +1192,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 3000);
         }
       } catch (error) {
-        const errorMsg = error.message || '';
-        const isConnectionError = errorMsg.includes('fetch') || errorMsg.includes('Failed to fetch') || errorMsg.includes('servidor') || errorMsg.includes('configurado') || errorMsg.includes('inicializado') || errorMsg.includes('NetworkError');
-        
-        if (isConnectionError && !window.isSupabaseConfigured) {
-          // Fallback simulated signup
-          setTimeout(() => {
-            localStorage.setItem('nuvuy_user_name', name);
-            showToast(`[SIMULAÇÃO] Conta criada com sucesso, ${name}! Redirecionando...`, 'success');
-            
-            setTimeout(() => {
-              window.location.href = getPageUrl('dashboard');
-            }, 1200);
-          }, 1500);
-        } else {
-          showToast(`Erro ao cadastrar: ${error.message}`, 'info');
-          submitBtn.classList.remove('loading');
-          submitBtn.innerHTML = `<span>Criar minha conta</span>`;
-          inputs.forEach(input => input.removeAttribute('disabled'));
-        }
+        clearTimeout(wakeupTimer);
+        showToast(`Erro ao cadastrar: ${error.message}`, 'error');
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = `<span>Criar minha conta</span>`;
+        inputs.forEach(input => input.removeAttribute('disabled'));
       }
     });
   }
@@ -1555,22 +1498,35 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="details-info-grid">
           <div class="info-item">
             <span class="info-label">Telefone / Celular</span>
-            <span class="info-value"><a href="tel:${escapeHtml(lead.phone)}">${escapeHtml(lead.phone)}</a></span>
+            <span class="info-value">
+              ${lead.phone && lead.phone.trim() !== '' && lead.phone !== 'Não possui'
+                ? `<a href="tel:${escapeHtml(lead.phone)}">${escapeHtml(lead.phone)}</a>`
+                : `<span style="color: var(--text-secondary); font-style: italic;">Não identificado</span>`
+              }
+            </span>
           </div>
           <div class="info-item">
             <span class="info-label">WhatsApp</span>
             <span class="info-value">
-              ${justData.maps_whatsapp && justData.maps_whatsapp !== 'N/A' 
+              ${justData.maps_whatsapp && justData.maps_whatsapp !== 'N/A' && justData.maps_whatsapp.trim() !== ''
                 ? `<a href="https://wa.me/${justData.maps_whatsapp.replace(/[^0-9]/g, '')}" target="_blank">${escapeHtml(justData.maps_whatsapp)}</a>` 
-                : `<a href="https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}" target="_blank">${escapeHtml(lead.phone)}</a>`
+                : (lead.phone && lead.phone.trim() !== '' && lead.phone !== 'Não possui'
+                  ? `<a href="https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}" target="_blank">${escapeHtml(lead.phone)}</a>`
+                  : `<span style="color: var(--text-secondary); font-style: italic;">Não identificado</span>`
+                )
               }
             </span>
           </div>
           <div class="info-item">
             <span class="info-label">E-mail</span>
-            <span class="info-value"><a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a></span>
+            <span class="info-value">
+              ${lead.email && lead.email.trim() !== '' && lead.email !== 'Não possui'
+                ? `<a href="mailto:${escapeHtml(lead.email)}">${escapeHtml(lead.email)}</a>`
+                : `<span style="color: var(--text-secondary); font-style: italic;">Não identificado</span>`
+              }
+            </span>
           </div>
-          ${lead.instagram ? `
+          ${lead.instagram && lead.instagram !== 'Não possui' ? `
           <div class="info-item">
             <span class="info-label">Instagram</span>
             <span class="info-value"><a href="https://instagram.com/${escapeHtml(lead.instagram.replace('@', ''))}" target="_blank">${escapeHtml(lead.instagram)}</a></span>
@@ -1581,13 +1537,17 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="info-value">
               ${(!lead.website || lead.website === 'Não possui' || lead.website.trim() === '') 
                 ? '<span style="color: #FF453A; font-weight: 600;">NÃO POSSUI SITE</span>' 
-                : `<a href="https://${escapeHtml(lead.website)}" target="_blank">${escapeHtml(lead.website)}</a>`
+                : `<a href="https://${escapeHtml(lead.website.replace(/^https?:\/\//i, ''))}" target="_blank">${escapeHtml(lead.website)}</a>`
               }
             </span>
           </div>
           <div class="info-item">
             <span class="info-label">Endereço</span>
-            <span class="info-value">${escapeHtml(lead.address)}</span>
+            <span class="info-value">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.title + ' ' + lead.address)}" target="_blank" style="text-decoration: underline; color: #00A6FF;" title="Ver no Google Maps">
+                ${escapeHtml(lead.address)} (Abrir no Google Maps 🗺️)
+              </a>
+            </span>
           </div>
           <div class="info-item">
             <span class="info-label">Data da Captura</span>
@@ -1716,13 +1676,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (backendActive && token) {
         try {
           const res = await callBackend('/api/leads', 'GET', null, token);
-          leads = res.data;
+          leads = res.data || [];
         } catch (err) {
           console.error('Erro ao carregar leads do servidor:', err);
-          leads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
         }
-      } else {
-        leads = JSON.parse(localStorage.getItem('nuvuy_simulated_leads') || '[]');
       }
 
       leadsDatabase.length = 0;
