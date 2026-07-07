@@ -1,3 +1,5 @@
+const now = () => new Date().toLocaleTimeString('pt-BR');
+
 // Motor de inteligência SDR do Nuvuy via OpenRouter LLM
 
 /**
@@ -12,7 +14,7 @@ const evaluateLeadWithAI = async (leadData) => {
   const model = process.env.OPENROUTER_MODEL || 'openrouter/free';
 
   if (!apiKey || apiKey === 'SEU_OPENROUTER_API_KEY_AQUI') {
-    console.log('[AI] OpenRouter não configurado. Utilizando classificação simulada.');
+    console.log(`[${now()}] [AI] OpenRouter não configurado. Usando classificação simulada.`);
     return getSimulatedEvaluation(leadData);
   }
 
@@ -87,14 +89,27 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem marcações markdown extra ou 
             role: 'user',
             content: prompt
           }
-        ]
+        ],
+        safety: false
       }),
       signal: controller.signal
     });
 
     clearTimeout(timeout);
 
-    const result = await response.json();
+    const rawText = await response.text();
+    console.log(`[${now()}] [AI] Resposta recebida (${rawText?.length} chars)`);
+    if (rawText?.startsWith('User Safety')) {
+      console.error(`[${now()}] [AI] BLOQUEIO DE SEGURANÇA: ${rawText}`);
+    }
+    let result;
+    try {
+      result = JSON.parse(rawText);
+    } catch {
+      console.error(`[${now()}] [AI] Resposta não é JSON: ${rawText?.slice(0, 200)}`);
+      throw new Error('AI_FIX_ATIVO_JSON_INVALIDO');
+    }
+
     if (!response.ok) {
       throw new Error(result.error?.message || 'Erro na requisição ao OpenRouter');
     }
@@ -102,9 +117,19 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem marcações markdown extra ou 
     const content = result.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error('Retorno vazio do OpenRouter');
 
-    // Tenta limpar possíveis marcações de código markdown do JSON
+    if (content === 'User Safety: safe') {
+      console.error(`[${now()}] [AI] Conteúdo bloqueado pelo OpenRouter`);
+      throw new Error('CONTEUDO_BLOQUEADO_PELO_OPENROUTER');
+    }
+
     const cleanJsonStr = content.replace(/^```json\s*/i, '').replace(/```$/, '').trim();
-    const evaluation = JSON.parse(cleanJsonStr);
+    let evaluation;
+    try {
+      evaluation = JSON.parse(cleanJsonStr);
+    } catch {
+      console.error(`[${now()}] [AI] Mensagem não é JSON: ${content.slice(0, 200)}`);
+      throw new Error('CONTEUDO_NAO_E_JSON');
+    }
 
     // Valida e força os limites rígidos em caso de desalinhamento do LLM
     let pontuacao = parseInt(evaluation.pontuacao) || 50;
@@ -156,7 +181,7 @@ Responda EXCLUSIVAMENTE em formato JSON puro, sem marcações markdown extra ou 
       justificativa_ia: justificativa_ia_str
     };
   } catch (error) {
-    console.error('[AI] Erro ao qualificar com OpenRouter. Usando fallback:', error.message);
+    console.error(`[${now()}] [AI] Erro ao qualificar com OpenRouter. Usando fallback: ${error.message}`);
     return getSimulatedEvaluation(leadData);
   }
 };

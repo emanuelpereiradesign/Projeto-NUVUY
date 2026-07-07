@@ -12,12 +12,20 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+const now = () => new Date().toLocaleTimeString('pt-BR');
+
 // Caminho para a pasta front-end (um nível acima do Back-end)
 const frontEndPath = path.join(__dirname, '..', 'Front-end');
 
 // Configuração de CORS (Habilita chamadas a partir das páginas HTML locais)
 app.use(cors());
 app.use(express.json());
+
+// Log de todas as requisições
+app.use((req, res, next) => {
+  console.log(`[${now()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // Serve arquivos estáticos do front-end
 app.use(express.static(frontEndPath));
@@ -220,28 +228,27 @@ app.put('/api/user/password', async (req, res) => {
 
 // Rota para criar tarefa e capturar/gerar leads salvando no banco de dados
 app.post('/api/tarefas', async (req, res) => {
-  console.log('\n[API] POST /api/tarefas recebida');
-  console.log('[API] Headers:', JSON.stringify(req.headers.authorization ? 'Bearer ***' : 'Sem token'));
-  console.log('[API] Body:', JSON.stringify({ ...req.body, fontes: req.body.fontes }));
+  console.log(`\n[${now()}] ===== NOVA CAPTURA ====`);
+  console.log(`[${now()}] Body: nicho="${req.body.nicho}", regiao="${req.body.regiao}", qtd=${req.body.quantidade}, fontes=[${req.body.fontes}]`);
 
   if (!supabase) {
-    console.warn('[API] Supabase não inicializado');
+    console.warn(`[${now()}] Supabase não inicializado`);
     return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
   }
 
   const token = getAuthToken(req);
   if (!token) {
-    console.warn('[API] Token não fornecido');
+    console.warn(`[${now()}] Token não fornecido`);
     return res.status(401).json({ error: 'Não autorizado. Token de sessão não fornecido.' });
   }
 
   const { nicho, regiao, quantidade, fontes } = req.body;
   if (!nicho || !regiao || !quantidade || !fontes || !Array.isArray(fontes)) {
-    console.warn('[API] Campos obrigatórios faltando');
+    console.warn(`[${now()}] Campos obrigatórios faltando`);
     return res.status(400).json({ error: 'Nicho, região, quantidade e fontes são obrigatórios.' });
   }
 
-  console.log(`[API] Buscando ${quantidade} leads para "${nicho}" em "${regiao}"`);
+  console.log(`[${now()}] Iniciando captura: ${quantidade}x "${nicho}" em "${regiao}"`);
 
   try {
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -304,31 +311,40 @@ app.post('/api/tarefas', async (req, res) => {
     }
 
     // 5. Executa a captação de leads via Web Scraper
+    console.log(`[${now()}] [2/5] Scraper: captando leads...`);
     const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, fontes);
+    console.log(`[${now()}] [2/5] Scraper retornou ${leadsToProcess.length} leads`);
 
     // Qualifica os leads utilizando a IA (OpenRouter) sequencialmente para evitar rate limit
     const qualifiedLeads = [];
-    for (const leadData of leadsToProcess) {
+    console.log(`[${now()}] [3/5] Classificando ${leadsToProcess.length} leads com IA...`);
+    for (let i = 0; i < leadsToProcess.length; i++) {
+      const leadData = leadsToProcess[i];
+      console.log(`[${now()}]   IA #${i+1}: "${leadData.name}"...`);
       const aiEval = await evaluateLeadWithAI({
         name: leadData.name,
         category: nicho.toUpperCase(),
         location: regiao,
         rating: leadData.rating,
         reviewsCount: leadData.mapsMetrics ? leadData.mapsMetrics.qtd_comentarios : 0,
-        imagesQuality: leadData.mapsMetrics ? leadData.mapsMetrics.qualidade_imagens : 'Média',
+        imagesQuality: leadData.mapsMetrics && leadData.mapsMetrics.qualidade_imagens ? leadData.mapsMetrics.qualidade_imagens : 'Média',
         website: leadData.website,
         instagram: leadData.instagram,
         followers: leadData.instaMetrics ? leadData.instaMetrics.qtd_seguidores : 0,
         postsCount: leadData.instaMetrics ? leadData.instaMetrics.qtd_postagem : 0,
-        following: leadData.instaMetrics ? leadData.instaMetrics.qtd_seguindo : 0,
+        following: 0,
         engagementRate: leadData.instaMetrics ? leadData.instaMetrics.taxa_engajamento : 0,
-        postsQuality: leadData.instaMetrics ? leadData.instaMetrics.qualidade_postagem : 'Média'
+        postsQuality: leadData.instaMetrics && leadData.instaMetrics.qualidade_postagem ? leadData.instaMetrics.qualidade_postagem : 'Média'
       });
+      console.log(`[${now()}]   IA #${i+1}: ${leadData.name} → ${aiEval.pontuacao}pts (${aiEval.classificacao})`);
       qualifiedLeads.push({ ...leadData, aiEval });
     }
+    console.log(`[${now()}] [3/5] Classificação concluída: ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='quente').length} quente, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='morno').length} morno, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='frio').length} frio`);
+
     const generatedLeads = [];
 
     // Salva os leads qualificados no banco de dados
+    console.log(`[${now()}] [4/5] Salvando ${qualifiedLeads.length} leads no banco...`);
     for (const lead of qualifiedLeads) {
       const email = lead.email || '';
       const phone = lead.phone || '';
@@ -346,6 +362,7 @@ app.post('/api/tarefas', async (req, res) => {
         categoria: nicho.toUpperCase()
       }).select().single();
 
+      console.log(`[${now()}]   Salvo: "${lead.name}" (ID ${leadRow.id})`);
       if (leadErr) throw leadErr;
 
       // 5.2 Salva métricas de Google Maps se selecionada
@@ -404,8 +421,10 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
+    console.log(`[${now()}] [5/5] Captura concluída: ${generatedLeads.length} leads retornados`);
     res.status(201).json({ success: true, data: generatedLeads });
   } catch (error) {
+    console.error(`[${now()}] ERRO na captura: ${error.message}`);
     res.status(400).json({ error: error.message });
   }
 });
@@ -638,5 +657,8 @@ app.post('/api/auth/logout', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Servidor backend Nuvuy rodando na porta ${port}`);
+  console.log(`[${now()}] ==============================`);
+  console.log(`[${now()}]  Nuvuy Backend rodando na porta ${port}`);
+  console.log(`[${now()}]  Supabase: ${supabase ? 'CONECTADO' : 'DESCONECTADO'}`);
+  console.log(`[${now()}] ==============================`);
 });
