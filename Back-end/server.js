@@ -668,7 +668,7 @@ app.post('/api/create-preference', async (req, res) => {
       return res.status(400).json({ error: 'planName, price e userId são obrigatórios.' });
     }
 
-    const response = await fetch(`${MISTICPAY_API_KEY.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`, {
+    const response = await fetch(`${misticpayApiKey.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
