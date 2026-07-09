@@ -668,7 +668,13 @@ app.post('/api/create-preference', async (req, res) => {
       return res.status(400).json({ error: 'planName, price e userId são obrigatórios.' });
     }
 
-    const response = await fetch(`${misticpayApiKey.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`, {
+    if (!misticpayApiKey || misticpayApiKey === 'SUA_MISTICPAY_API_KEY') {
+      return res.status(400).json({ error: 'MISTICPAY_API_KEY não configurada no servidor. Verifique o .env ou as variáveis de ambiente no Render.' });
+    }
+
+    const apiUrl = `${misticpayApiKey.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`;
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
