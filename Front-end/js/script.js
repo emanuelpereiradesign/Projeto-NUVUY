@@ -2057,11 +2057,11 @@ document.addEventListener('DOMContentLoaded', () => {
               userId
             }, token);
 
-            if (res && res.qrCodeImage) {
+            if (res && (res.qrCodeBase64 || res.qrcodeUrl)) {
               openPixModal(planName);
-              pixQrContainer.innerHTML = `<img src="${res.qrCodeImage}" alt="QR Code PIX" style="width:220px;height:220px;border-radius:12px;" />`;
-              if (res.qrCode) {
-                pixCodeInput.value = res.qrCode;
+              pixQrContainer.innerHTML = `<img src="${res.qrCodeBase64 || res.qrcodeUrl}" alt="QR Code PIX" style="width:220px;height:220px;border-radius:12px;" />`;
+              if (res.copyPaste) {
+                pixCodeInput.value = res.copyPaste;
                 pixCodeContainer.style.display = 'block';
               }
               showToast(`Pagamento PIX gerado para o plano ${planName}!`, 'info');

@@ -658,7 +658,8 @@ app.post('/api/auth/logout', async (req, res) => {
 
 // --- MisticPay Integration ---
 const MISTICPAY_API_URL = 'https://api.misticpay.com';
-const misticpayApiKey = process.env.MISTICPAY_API_KEY;
+const misticpayCi = process.env.MISTICPAY_CI;
+const misticpayCs = process.env.MISTICPAY_CS;
 
 // Rota: Criar preferência de pagamento (gera QR Code PIX)
 app.post('/api/create-preference', async (req, res) => {
@@ -668,24 +669,25 @@ app.post('/api/create-preference', async (req, res) => {
       return res.status(400).json({ error: 'planName, price e userId são obrigatórios.' });
     }
 
-    if (!misticpayApiKey || misticpayApiKey === 'SUA_MISTICPAY_API_KEY') {
-      return res.status(400).json({ error: 'MISTICPAY_API_KEY não configurada no servidor. Verifique o .env ou as variáveis de ambiente no Render.' });
+    if (!misticpayCi || !misticpayCs || misticpayCs === 'SUA_MISTICPAY_CS') {
+      return res.status(400).json({ error: 'MISTICPAY_CI ou MISTICPAY_CS não configurados no servidor. Verifique as variáveis de ambiente no Render.' });
     }
 
-    const apiUrl = `${misticpayApiKey.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`;
+    const transactionId = `nuvuy_${userId}_${planName}_${Date.now()}`;
 
-    console.log(`[${now()}] Chamando MisticPay API: ${apiUrl}`);
-    const response = await fetch(apiUrl, {
+    console.log(`[${now()}] Chamando MisticPay API: ${MISTICPAY_API_URL}/api/transactions/create`);
+    const response = await fetch(`${MISTICPAY_API_URL}/api/transactions/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${misticpayApiKey}`
+        'ci': misticpayCi,
+        'cs': misticpayCs
       },
       body: JSON.stringify({
         amount: parseFloat(price),
         payerName: payerName || 'Cliente Nuvuy',
         payerDocument: payerDocument || '00000000000',
-        transactionId: `nuvuy_${userId}_${planName}_${Date.now()}`,
+        transactionId,
         description: `Plano ${planName} - Nuvuy`,
         projectWebhook: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/webhook/misticpay`
       })
@@ -697,10 +699,11 @@ app.post('/api/create-preference', async (req, res) => {
 
     res.json({
       success: true,
-      qrCode: data.qrCode,
-      qrCodeImage: data.qrCodeImage,
-      transactionId: data.id,
-      externalId: data.clientTransactionId
+      qrCodeBase64: data.data?.qrCodeBase64 || null,
+      qrcodeUrl: data.data?.qrcodeUrl || null,
+      copyPaste: data.data?.copyPaste || null,
+      transactionId: data.data?.transactionId || null,
+      externalId: transactionId
     });
   } catch (error) {
     console.error(`[${now()}] Erro MisticPay: ${error.message}`);
@@ -714,21 +717,9 @@ app.post('/api/webhook/misticpay', async (req, res) => {
     const payload = req.body;
     console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
 
-    if (payload.transactionState === 'COMPLETO' && payload.clientTransactionId) {
-      const parts = payload.clientTransactionId.split('_');
-      if (parts.length >= 3) {
-        const userId = parts[1];
-        const planName = parts[2];
-        console.log(`[${now()}] Pagamento confirmado: userId=${userId}, plan=${planName}`);
-
-        if (supabase) {
-          const { error } = await supabase
-            .from('usuario')
-            .update({ plano: planName.toLowerCase() })
-            .eq('id', userId);
-          if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
-        }
-      }
+    if (payload.transactionType === 'DEPOSITO' && payload.status === 'COMPLETO') {
+      const transactionId = payload.clientTransactionId || payload.transactionId;
+      console.log(`[${now()}] Pagamento confirmado: transactionId=${transactionId}`);
     }
 
     res.status(200).json({ received: true });
