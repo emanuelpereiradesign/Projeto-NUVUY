@@ -674,6 +674,7 @@ app.post('/api/create-preference', async (req, res) => {
 
     const apiUrl = `${misticpayApiKey.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`;
 
+    console.log(`[${now()}] Chamando MisticPay API: ${apiUrl}`);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -691,7 +692,8 @@ app.post('/api/create-preference', async (req, res) => {
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Erro ao criar pagamento');
+    console.log(`[${now()}] Resposta MisticPay: status=${response.status}`, JSON.stringify(data));
+    if (!response.ok) throw new Error(data.message || data.error || `Erro MisticPay (${response.status})`);
 
     res.json({
       success: true,
