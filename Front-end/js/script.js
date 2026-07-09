@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('nuvuy_refresh_token');
       localStorage.removeItem('nuvuy_user_name');
       window.location.href = getPageUrl('login');
-      return;
+      return null;
     }
     const data = await response.json();
     if (!response.ok) {
@@ -639,25 +639,32 @@ document.addEventListener('DOMContentLoaded', () => {
       const submitBtnSvg = submitBtn.querySelector('svg');
       
       submitBtn.classList.add('loading');
-      if (submitBtnText) submitBtnText.textContent = 'Efetuando captura...';
       
       // Replace SVG icon with spinner
-      const originalSvgHTML = submitBtnSvg ? submitBtnSvg.outerHTML : '';
+      const originalSvg = submitBtnSvg ? submitBtnSvg.outerHTML : '';
       submitBtn.innerHTML = `<span class="spinner"></span> <span>Efetuando captura...</span>`;
       
       // Disable inputs during processing
       const inputs = form.querySelectorAll('.modal-input, .btn-source');
       inputs.forEach(input => input.setAttribute('disabled', 'true'));
       if (closeModalBtn) closeModalBtn.style.display = 'none';
+      
+      // Waiting toast after 4s (e.g. Render waking up)
+      let waitingToastTimer = setTimeout(() => {
+        showToast('Estamos efetuando sua busca, aguarde apenas um momento...', 'info');
+      }, 4000);
 
       const resetForm = () => {
+        clearTimeout(waitingToastTimer);
         submitBtn.classList.remove('loading');
-        submitBtn.innerHTML = `${originalSvgHTML} <span>Efetuar captura</span>`;
+        submitBtn.innerHTML = `${originalSvg} <span>Efetuar captura</span>`;
         inputs.forEach(input => input.removeAttribute('disabled'));
         if (closeModalBtn) closeModalBtn.style.display = 'flex';
         form.reset();
         closeModal();
       };
+
+      let resData;
 
       const token = localStorage.getItem('nuvuy_access_token');
       console.log('[DEBUG] Token encontrado?', !!token);
@@ -668,14 +675,19 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(btn => btn.getAttribute('data-source'));
           console.log('[DEBUG] Chamando API /api/tarefas...');
 
-          const res = await callBackend('/api/tarefas', 'POST', {
+          resData = await callBackend('/api/tarefas', 'POST', {
             nicho,
             regiao,
             quantidade,
             fontes: activeSourceTypes
           }, token);
 
-          const leads = res.data;
+          if (!resData) {
+            resetForm();
+            return;
+          }
+
+          const leads = resData.data;
 
           if (!leads || leads.length === 0) {
             showToast('Nenhum lead real encontrado para esta busca. Tente outro nicho ou região.', 'warning');

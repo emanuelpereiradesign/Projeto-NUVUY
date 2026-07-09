@@ -2,7 +2,7 @@
 
 ## 1. O que é o Nuvuy?
 
-O Nuvuy (captura de leads) é uma ferramenta própria de web scraping e classificação de leads, criada para prestadores de serviços digitais (designers, desenvolvedores, agências de marketing) que precisam prospectar clientes de forma automatizada e inteligente. O sistema coleta dados de fontes como Google Maps e Instagram, armazena no Supabase, classifica cada lead através de um algoritmo próprio de pontuação inteligente e exibe os resultados em um dashboard visual.
+O Nuvuy (captura de leads) é uma ferramenta própria de web scraping e classificação de leads, criada para prestadores de serviços digitais (designers, desenvolvedores, agências de marketing) que precisam prospectar clientes de forma automatizada e inteligente. O sistema coleta dados do Google Maps via Google Places API, armazena no Supabase, classifica cada lead através de um algoritmo próprio de pontuação inteligente e exibe os resultados em um dashboard visual.
 
 ## 2. Objetivos
 
@@ -24,34 +24,32 @@ O Nuvuy (captura de leads) é uma ferramenta própria de web scraping e classifi
 | Ator | Descrição |
 |------|-----------|
 | **Usuário (Assinante)** | Ator principal. Representa os profissionais que utilizam o dashboard web. Inicia as campanhas de busca, consome os créditos do plano e acessa os dados dos leads. |
-| **Sistemas Externos (Atores Não-Humanos)** | Representam as plataformas das quais o sistema extrai os dados (Google Maps e Instagram) e a API de IA (OpenRouter), responsável por processar e classificar as informações capturadas de forma automatizada. |
+| **Sistemas Externos (Atores Não-Humanos)** | Representam as plataformas das quais o sistema extrai os dados (Google Maps via Places API) e a API de IA (OpenRouter), responsável por processar e classificar as informações capturadas de forma automatizada. |
 
 ## 5. Minimundo do Projeto
 
-O Nuvuy é um sistema SaaS de prospecção digital projetado para prestadores de serviços. O sistema permite que o usuário configure Jobs de busca por nicho e localidade, acionando robôs de coleta automatizada (scrapers) que extraem informações de empresas em fontes públicas, como Google Maps e Instagram.
+O Nuvuy é um sistema SaaS de prospecção digital projetado para prestadores de serviços. O sistema permite que o usuário configure tarefas de busca por nicho e localidade, acionando o scraper que extrai informações de empresas no Google Maps via Google Places API. O Instagram não é mais utilizado como fonte de dados reais (apenas como indicador no card).
 
-O grande diferencial do sistema é o seu motor interno de qualificação, alimentado por Modelos de Linguagem de Larga Escala (LLMs) integrados via OpenRouter. Após os scrapers capturarem os dados brutos (nome, contato, website, endereço, categoria), o sistema envia essas informações para a IA, que analisa a presença digital do potencial cliente. Com base nessa análise, o sistema atribui um "Score" exclusivo para o lead, classificando-o automaticamente em três níveis de temperatura: **Frio** (0–40), **Morno** (41–70) ou **Quente** (71–100).
+O grande diferencial do sistema é o seu motor interno de qualificação, alimentado por Modelos de Linguagem de Larga Escala (LLMs) integrados via OpenRouter. Após o scraper capturar os dados brutos (nome, contato, website, endereço, avaliação), o sistema envia essas informações para a IA, que analisa a presença digital do potencial cliente. Com base nessa análise, o sistema atribui um "Score" para o lead, classificando-o automaticamente em três níveis de temperatura: **Frio** (0–40), **Morno** (41–70) ou **Quente** (71–100).
 
 Toda a interface de gestão ocorre em um dashboard web responsivo com tema futurista/dark, utilizando um layout **Kanban** com três colunas (Quente, Morno, Frio) onde os leads são organizados por prioridade de fechamento.
 
-A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel, API no Render, banco no Supabase). Porém, o sistema também funciona em **modo híbrido**: se o backend estiver offline, o frontend opera de forma totalmente estática, persistindo os leads capturados em `localStorage`.
+A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel, API no Render, banco no Supabase). O Render free hiberna após 15 minutos sem uso; o UptimeRobot é usado para manter o serviço ativo.
 
 ### 5.1 Fluxo Funcional Situacional
 
-1. Usuário preenche o modal de captura com nicho, região, quantidade e fontes (Google Maps e/ou Instagram).
-2. Front-end envia requisição `POST /api/tarefas` para o backend Express (porta 3000).
+1. Usuário preenche o modal de captura com nicho, região, quantidade e fontes (apenas Google Maps funcional).
+2. Front-end envia requisição `POST /api/tarefas` para o backend Express (Render ou localhost:3000).
 3. Back-end verifica o token JWT do usuário e cria o registro da tarefa no Supabase.
-4. Back-end executa o **scraper multicamada** imediatamente (de forma síncrona):
-   - **1ª camada**: Google Places API (requer chave oficial)
-   - **2ª camada**: Nominatim (OpenStreetMap) com enriquecimento via DuckDuckGo
-   - **3ª camada**: DuckDuckGo Direct (leads orgânicos adicionais)
-   - **4ª camada**: OpenRouter LLM (fallback inteligente gerando leads reais)
-   - **5ª camada**: Fallback local estruturado com endereços realistas
+4. Back-end executa o **scraper via Google Places API** imediatamente (de forma síncrona):
+   - Busca estabelecimentos na região com o termo informado
+   - Para cada resultado, busca detalhes (telefone, website) via Place Details
 5. Para cada lead capturado, o sistema envia os dados para o **OpenRouter LLM**, que analisa a presença digital e retorna pontuação (0–100), classificação (quente/morno/frio) e justificativa com roteiro de abordagem.
 6. Caso a IA falhe ou não esteja configurada, um **fallback simulado** classifica com base em regras fixas (site, seguidores, avaliação).
-7. Tudo é salvo no Supabase: `lead`, `metrica_google_maps`, `metrica_instagram` e `score`.
+7. Tudo é salvo no Supabase: `lead`, `metrica_google_maps` e `score`.
 8. Back-end retorna os leads formatados → Front-end insere os cards nas colunas do Kanban.
-9. Se o backend estiver offline, o front-end opera em **modo simulado** usando dados mockados em `localStorage`.
+9. Se a busca demorar mais de 4 segundos, o front-end exibe toast "Estamos efetuando sua busca, aguarde apenas um momento...".
+10. Modal de captura fecha automaticamente ao finalizar (sucesso ou erro).
 
 ## 6. Modelo Canvas
 
@@ -67,12 +65,12 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 | Componente | Descrição |
 |------------|-----------|
-| **Proposta de Valor** | Ferramenta de prospecção digital: scraping inteligente + classificação via LLM + dashboard visual |
+| **Proposta de Valor** | Ferramenta de prospecção digital: scraping via Google Places + classificação via LLM + dashboard visual |
 | **Segmento de Clientes** | MEIs, freelancers e agências de serviços digitais (design, dev, marketing) |
 | **Canais** | Instagram, grupos WhatsApp/Telegram, indicação, Discord |
 | **Relacionamento** | Suporte por WhatsApp, comunidade de usuários |
 | **Fontes de Receita** | Assinatura SaaS mensal/anual |
-| **Atividades-Chave** | Manutenção dos scrapers, refinamento dos prompts de IA, evolução do dashboard |
+| **Atividades-Chave** | Manutenção do scraper, refinamento dos prompts de IA, evolução do dashboard |
 | **Estrutura de Custos** | R$ 0/mês (infraestrutura gratuita) |
 | **Vantagem Competitiva** | Nicho específico, classificação inteligente, tema visual único, custo zero de operação |
 
@@ -84,11 +82,9 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 
 | ID | Descrição | Prioridade |
 |----|-----------|------------|
-| RF01 | Scraping de dados do Google Maps via Google Places API / Nominatim (nome, endereço, telefone, avaliação, website) | Alta |
-| RF02 | Geração de métricas de Instagram (seguidores, postagens, engajamento, qualidade) via dados simulados e enriquecimento DuckDuckGo | Alta |
-| RF03 | Scraping de dados via DuckDuckGo Direct para leads orgânicos adicionais | Alta |
-| RF04 | Fallback inteligente usando OpenRouter LLM para gerar leads reais quando as fontes orgânicas falham | Média |
-| RF05 | Fontes de dados configuráveis (ativa/desativa via toggle no modal) | Alta |
+| RF01 | Scraping de dados do Google Maps via Google Places API (nome, endereço, telefone, avaliação, website) | Alta |
+| RF02 | Instagram não é mais scrapperado; mantido apenas como indicador visual no card | Baixa |
+| RF03 | Fontes de dados configuráveis (ativa/desativa via toggle no modal) | Alta |
 
 #### Módulo de Classificação de Leads
 
@@ -110,18 +106,20 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 | RF14 | Painel "Leads Inteligentes" com gráficos (Chart.js), lista de leads, detalhes com justificativa da IA e roteiro de abordagem | Alta |
 | RF15 | Botão "Não possui site" destacado em vermelho nos cards do Kanban | Alta |
 | RF16 | Sistema de toast notifications com auto-dismiss (4s) e indicador de progresso | Média |
-| RF17 | Layout responsivo (desktop, tablet, mobile) | Alta |
-| RF18 | Tema visual futurista/dark com glassmorphism | Alta |
+| RF17 | Toast de espera "Estamos efetuando sua busca..." exibido após 4s se a busca demorar | Média |
+| RF18 | Modal de captura fecha automaticamente ao finalizar a busca (sucesso ou erro) | Alta |
+| RF19 | Layout responsivo (desktop, tablet, mobile) | Alta |
+| RF20 | Tema visual futurista/dark com glassmorphism | Alta |
 
 ### 7.2 Requisitos Não Funcionais
 
 | ID | Requisito | Descrição |
 |----|-----------|-----------|
-| RNF01 | Usabilidade | A interface do dashboard deve ser intuitiva, fácil de usar e totalmente responsiva (adaptável para desktop e dispositivos móveis) |
-| RNF02 | Disponibilidade | O sistema deve operar 100% em nuvem, permitindo que as buscas rodem em segundo plano sem depender do computador local do usuário |
-| RNF03 | Segurança | A comunicação deve ser criptografada (HTTPS) e os dados dos usuários e leads devem ser armazenados de forma segura no banco de dados |
-| RNF04 | Desempenho | O sistema deve processar a fila de captura e classificação de leads de forma assíncrona, sem travar a interface do usuário |
-| RNF05 | Conformidade | A coleta de dados deve focar exclusivamente em informações públicas de empresas (B2B), respeitando as diretrizes gerais da LGPD |
+| RNF01 | Usabilidade | A interface do dashboard deve ser intuitiva, fácil de usar e totalmente responsiva |
+| RNF02 | Disponibilidade | O sistema deve operar em nuvem (Vercel + Render + Supabase); Render free hiberna após 15 min, mitigado por UptimeRobot |
+| RNF03 | Segurança | Comunicação criptografada (HTTPS), dados seguros no banco, autenticação via Supabase |
+| RNF04 | Desempenho | A captura é síncrona com timeout de 90s. Toast de espera exibido após 4s. Modal fecha automaticamente |
+| RNF05 | Conformidade | Coleta foca em informações públicas de empresas (B2B), respeitando diretrizes da LGPD |
 
 ### 7.3 Estrutura de Banco de Dados
 
@@ -208,7 +206,7 @@ Métricas do Google Maps para cada lead.
 | id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
 | qtd_comentarios | integer | Número de avaliações |
 | nota_avaliacao | numeric | Nota (1.0 a 5.0) |
-| qualidade_imagens | text | "Baixa", "Média" ou "Alta" |
+| qualidade_imagens | text | null (não fornecido pela Places API) |
 
 #### `metrica_instagram`
 Métricas do Instagram para cada lead.
@@ -217,11 +215,11 @@ Métricas do Instagram para cada lead.
 |--------|------|-----------|
 | id | UUID (PK) | Chave primária |
 | id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
-| qtd_seguidores | integer | Seguidores |
-| qtd_postagem | integer | Total de posts |
-| taxa_engajamento | numeric | Percentual de engajamento |
-| qualidade_postagem | text | "Baixa", "Média" ou "Alta" |
-| nicho_atuacao | text | Nicho do lead |
+| qtd_seguidores | integer | null (não scrapperado) |
+| qtd_postagem | integer | null |
+| taxa_engajamento | numeric | null |
+| qualidade_postagem | text | null |
+| nicho_atuacao | text | null |
 
 #### `score`
 Classificação e pontuação do lead gerada pela IA.
@@ -230,12 +228,12 @@ Classificação e pontuação do lead gerada pela IA.
 |--------|------|-----------|
 | id | UUID (PK) | Chave primária |
 | id_lead | UUID (FK → `lead.id`, unique) | Lead vinculado |
-| id_mtc_instagram | UUID (FK → `metrica_instagram.id`) | Métricas Instagram usadas |
+| id_mtc_instagram | UUID (FK → `metrica_instagram.id`) | null (sem dados reais) |
 | id_mtc_mps | UUID (FK → `metrica_google_maps.id`) | Métricas Maps usadas |
 | data_analise | timestamptz | Data da análise |
 | pontuacao | integer | 0 a 100 (check constraint) |
 | classificacao | text | "quente", "morno" ou "frio" |
-| justificativa_ia | text | JSON com justificativa, abordagem, comentários Maps, análise Instagram |
+| justificativa_ia | text | JSON com justificativa, abordagem, comentários Maps, análise |
 | **Constraint** | `check_classificacao_faixa` | Garante: quente=71-100, morno=41-70, frio=0-40 |
 
 #### Trigger: `on_auth_user_created`
@@ -253,9 +251,9 @@ Todas as tabelas possuem políticas de segurança que restringem o acesso a `aut
 | Critério | Peso | Descrição |
 |----------|------|-----------|
 | Presença digital | Alto | Possui site? Redes sociais ativas? |
-| Engajamento | Médio | Interação em posts, frequência de publicações |
+| Engajamento | Médio | Interação em posts, avaliações no Maps |
 | Segmento | Alto | Compatibilidade com serviços digitais oferecidos |
-| Indícios de necessidade | Alto | Ausência de site, cardápio digital, sistema de agendamento |
+| Indícios de necessidade | Alto | Ausência de site, baixa presença digital |
 
 ### 8.2 Pontuação
 
@@ -283,21 +281,21 @@ Todas as tabelas possuem políticas de segurança que restringem o acesso a `aut
 
 | Item | Fornecedor | Custo | Observação |
 |------|-----------|-------|------------|
-| Front-end | Vercel | Free (plano base) | Hospedagem estática HTML/CSS/JS |
-| API Backend (Node.js/Express) | Render | Free (plano base) | API REST, scraper e IA rodam aqui |
-| Banco de dados | Supabase | Free (plano base) | 500 MB, 50k linhas |
-| Scraping multicamada | Interno (Express) | Free | Executado síncrono na própria API |
-| Enriquecimento DuckDuckGo | Público | Free | Sem API key necessária |
+| Front-end | Vercel | Free | Hospedagem estática HTML/CSS/JS |
+| API Backend (Node.js/Express) | Render | Free | API REST, scraper e IA rodam aqui |
+| Banco de dados | Supabase | Free | 500 MB, 50k linhas |
+| Scraping | Google Places API | Free (200 req/dia) | Textsearch + Details |
+| Monitoramento | UptimeRobot | Free | Mantém Render acordado a cada 5 min |
 | Domínio | Subdomínio grátis | Free | nuvuy.vercel.app ou similar |
 | Marketing | Orgânico | Free | Instagram, grupos |
-| LLM (Classificação IA) | OpenRouter | Free (LLMs gratuitas) | Classificação e geração de leads |
+| LLM (Classificação IA) | OpenRouter | Free | LLMs gratuitas disponíveis |
 | **Total** | | **R$ 0** | Sem custo inicial |
 
 ### 10.2 Investimento Inicial (Único)
 
 | Item | Valor | Quando |
 |------|-------|--------|
-| Domínio .com.br (opcional) | R$ 40–60 | Só depois de validar o projeto |
+| Domínio .com.br (opcional) | R$ 40–60 | Após validar o projeto |
 
 ### 10.3 Projeção de Lucro (Ano 1)
 
@@ -318,11 +316,11 @@ Todas as tabelas possuem políticas de segurança que restringem o acesso a `aut
 
 **Cenário inicial:** até 1.400 leads/mês (exemplo: 4 usuários no plano Básico e 1 no plano Pro).
 
-**Execução atual:** O backend Express no Render consegue processar esse volume com as chamadas síncronas, dentro do timeout de 40s do scraper.
+**Execução atual:** O backend Express no Render processa esse volume com chamadas síncronas. O limite é a cota diária da Google Places API (200 textsearch + 100 details/dia).
 
-**Limitação:** Como o processamento é síncrono, requisições de muitos leads podem exceder o timeout do Render (30s em plano free). O scraper tem proteção com `Promise.race` e timeout de 40s.
+**Limitação:** Google Places tem cota gratuita de 200 requisições/dia. Cada busca usa 1 textsearch + N details. Para escalar, é necessário ativar faturamento no Google Cloud (pagamento por uso, ~$0.01/req após cota).
 
-**Crescimento futuro:** Para escalar, deve-se implementar fila de tarefas assíncrona com GitHub Actions ou workers dedicados (Railway, Heroku).
+**Crescimento futuro:** Para escalar, implementar fila de tarefas assíncrona e aumentar cota do Google Places.
 
 ## 11. Estratégia de Aquisição de Clientes
 
@@ -354,6 +352,8 @@ Validar a plataforma Nuvuy sem custo inicial, usando:
 - **Render** → hospedagem da API Node.js/Express (backend)
 - **Supabase** → banco de dados PostgreSQL + autenticação
 - **OpenRouter** → classificação inteligente de leads via LLM
+- **Google Places API** → scraper de dados reais de estabelecimentos
+- **UptimeRobot** → mantém Render acordado (ping a cada 5 min)
 - **Planos e tokens** → monetização clara e escalável
 
 ### Diagrama de Arquitetura (Resumido)
@@ -368,7 +368,9 @@ Usuário (Navegador)
     │
     └── Render ── API Express
                       │
-                      ├── scraper.js (Google Places → Nominatim → DDG → IA → fallback)
+                      ├── scraper.js (Google Places API → leads reais)
                       ├── ai.js (OpenRouter LLM → classificação)
                       └── Supabase (persistência + auth)
+
+UptimeRobot ── ping a cada 5 min → https://nuvuy-api.onrender.com/api/status
 ```
