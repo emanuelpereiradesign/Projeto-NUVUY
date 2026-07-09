@@ -37,6 +37,7 @@ body {
 .dashboard {
   display: flex;
   min-height: 100vh;
+  padding-left: 247px;
 }
 
 /* Sidebar */
@@ -48,6 +49,12 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  overflow-y: auto;
 }
 
 .logo {
@@ -140,6 +147,12 @@ body {
 }
 
 /* Main Content */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  padding-left: 247px;
+}
+
 .main-content {
   flex: 1;
   padding: 30px 40px 40px 40px;
@@ -155,6 +168,10 @@ body {
   padding-bottom: 24px;
   margin-bottom: 32px;
   border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  background: var(--bg-primary);
 }
 
 .search-bar {
@@ -201,6 +218,15 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
+}
+
+.top-user-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-icon-top {
@@ -439,6 +465,25 @@ body {
   flex-direction: column;
   gap: 16px;
   min-height: 480px;
+  max-height: 800px;
+  overflow-y: auto;
+}
+
+.lead-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lead-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lead-column::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.lead-column::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* Lead Card */
@@ -774,6 +819,27 @@ body {
 .btn-source:hover:not(.active) {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
+}
+
+.btn-source.btn-source-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: auto;
+  position: relative;
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.03);
+}
+.btn-source.btn-source-locked:hover {
+  opacity: 0.45;
+  background: rgba(255, 255, 255, 0.03);
+}
+.btn-source .lock-icon {
+  display: none;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.btn-source.btn-source-locked .lock-icon {
+  display: inline-block;
 }
 
 .form-reminder {
@@ -1252,6 +1318,46 @@ body {
   color: var(--text-primary);
 }
 
+/* Sidebar logout - reset btn-logout styles, inherit nav-item look */
+.sidebar .btn-logout,
+.nav-menu .btn-logout {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.sidebar .nav-menu .btn-logout:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+.sidebar .nav-menu .btn-logout svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.sidebar .nav-menu .btn-logout svg path,
+.sidebar .nav-menu .btn-logout svg polyline,
+.sidebar .nav-menu .btn-logout svg line {
+  stroke: var(--text-secondary);
+  transition: stroke 0.2s;
+}
+.sidebar .nav-menu .btn-logout:hover svg path,
+.sidebar .nav-menu .btn-logout:hover svg polyline,
+.sidebar .nav-menu .btn-logout:hover svg line {
+  stroke: var(--text-primary);
+}
+
 /* Logout Modal */
 .modal-logout-container {
   max-width: 420px;
@@ -1321,6 +1427,55 @@ body {
 }
 
 .btn-modal-danger:active {
+  transform: scale(0.98);
+}
+
+/* Modal Upgrade (plano pago) */
+.modal-upgrade-container {
+  max-width: 420px;
+  padding: 40px;
+  text-align: center;
+}
+.modal-upgrade-icon {
+  margin-bottom: 20px;
+  color: #fbbf24;
+}
+.modal-upgrade-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.modal-upgrade-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+.modal-upgrade-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.btn-modal-upgrade {
+  flex: 1;
+  max-width: 160px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #00A6FF 0%, #0088cc 100%);
+  border: none;
+  color: #fff;
+}
+.btn-modal-upgrade:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0, 166, 255, 0.3);
+}
+.btn-modal-upgrade:active {
   transform: scale(0.98);
 }
 

@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const storedUserName = localStorage.getItem('nuvuy_user_name');
   if (storedUserName) {
     document.querySelectorAll('.user-name').forEach(el => {
-      el.textContent = `${storedUserName} (admin)`;
+      el.textContent = storedUserName;
     });
   }
 
@@ -396,6 +396,43 @@ document.addEventListener('DOMContentLoaded', () => {
     tab.addEventListener('click', () => {
       filterTabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
+
+      const filterText = tab.textContent.trim();
+      const columns = document.querySelectorAll('.lead-column');
+
+      columns.forEach(col => col.style.display = 'flex');
+
+      const allCards = document.querySelectorAll('.lead-card');
+      if (filterText === 'TODOS') {
+        allCards.forEach(card => card.style.display = '');
+      } else if (filterText.includes('ALTO') || filterText.includes('QUENTE')) {
+        allCards.forEach(card => {
+          const col = card.closest('.lead-column');
+          if (col && col.dataset.column === 'quente') {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      } else if (filterText.includes('MÉDIA') || filterText.includes('MORNO')) {
+        allCards.forEach(card => {
+          const col = card.closest('.lead-column');
+          if (col && col.dataset.column === 'morno') {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      } else if (filterText.includes('BAIXO') || filterText.includes('FRIO')) {
+        allCards.forEach(card => {
+          const col = card.closest('.lead-column');
+          if (col && col.dataset.column === 'frio') {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
     });
   });
 
@@ -564,6 +601,18 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           nichoInput?.focus();
         }, 100);
+
+        // Check plan and lock Instagram button if free
+        const userPlan = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
+        const instagramBtn = document.querySelector('.btn-source[data-source="instagram"]');
+        if (instagramBtn) {
+          if (userPlan === 'Gratuito') {
+            instagramBtn.classList.add('btn-source-locked');
+            instagramBtn.classList.remove('active');
+          } else {
+            instagramBtn.classList.remove('btn-source-locked');
+          }
+        }
       });
     });
   }
@@ -611,6 +660,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Source selection toggle (Multi-select: toggle active, but ensure at least one remains active)
   sourceButtons.forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.classList.contains('btn-source-locked')) {
+        // Open upgrade modal
+        const upgradeModal = document.getElementById('modal-upgrade');
+        if (upgradeModal) upgradeModal.classList.add('active');
+        return;
+      }
       const activeSources = document.querySelectorAll('.btn-source.active');
       if (btn.classList.contains('active') && activeSources.length === 1) {
         // Don't allow deselecting the only active source
@@ -620,6 +675,30 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.toggle('active');
     });
   });
+
+  // Upgrade modal logic (Instagram locked for free plan)
+  const upgradeModal = document.getElementById('modal-upgrade');
+  const closeUpgradeBtn = document.getElementById('btn-close-upgrade-modal');
+  const btnUpgradeOk = document.getElementById('btn-upgrade-ok');
+  const btnUpgradeAdquirir = document.getElementById('btn-upgrade-adquirir');
+
+  const closeUpgradeModal = () => {
+    if (upgradeModal) upgradeModal.classList.remove('active');
+  };
+
+  if (closeUpgradeBtn) closeUpgradeBtn.addEventListener('click', closeUpgradeModal);
+  if (btnUpgradeOk) btnUpgradeOk.addEventListener('click', closeUpgradeModal);
+  if (btnUpgradeAdquirir) {
+    btnUpgradeAdquirir.addEventListener('click', () => {
+      closeUpgradeModal();
+      window.location.href = 'planos.html';
+    });
+  }
+  if (upgradeModal) {
+    upgradeModal.addEventListener('click', (e) => {
+      if (e.target === upgradeModal) closeUpgradeModal();
+    });
+  }
 
   // Form submission / Real or Simulated Lead Capture
   if (form) {
@@ -959,10 +1038,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Modal Logout Logic ---
   const logoutModal = document.getElementById('modal-logout');
-  const btnLogout = document.querySelector('.btn-logout');
-  const btnCloseLogoutModal = document.getElementById('btn-close-logout-modal');
-  const btnLogoutCancel = document.querySelector('.btn-modal-cancel');
-  const btnLogoutConfirm = document.querySelector('.btn-modal-danger');
+  const sidebarLogout = document.getElementById('sidebar-logout');
+  const btnLogoutCancel = document.getElementById('btn-logout-cancel');
+  const btnLogoutConfirm = document.getElementById('btn-logout-confirm');
 
   const openLogoutModal = () => {
     if (logoutModal) logoutModal.classList.add('active');
@@ -972,12 +1050,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutModal) logoutModal.classList.remove('active');
   };
 
-  if (btnLogout) {
-    btnLogout.addEventListener('click', openLogoutModal);
-  }
-
-  if (btnCloseLogoutModal) {
-    btnCloseLogoutModal.addEventListener('click', closeLogoutModal);
+  if (sidebarLogout) {
+    sidebarLogout.addEventListener('click', openLogoutModal);
   }
 
   if (btnLogoutCancel) {
@@ -987,18 +1061,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnLogoutConfirm) {
     btnLogoutConfirm.addEventListener('click', () => {
       window.auth.signOut();
-    });
-  }
-
-  // Direct logout handler for pages without modal (e.g. configuracoes.html)
-  const directLogoutBtn = document.querySelector('a.btn-logout');
-  if (directLogoutBtn) {
-    directLogoutBtn.addEventListener('click', (e) => {
-      const logoutModal = document.getElementById('modal-logout');
-      if (!logoutModal) {
-        e.preventDefault();
-        window.auth.signOut();
-      }
     });
   }
 
@@ -1756,7 +1818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('config-user-name').value = user.user_metadata.full_name;
             document.getElementById('config-user-email').value = user.email;
             document.querySelectorAll('.user-name').forEach(el => {
-              el.textContent = `${user.user_metadata.full_name} (admin)`;
+              el.textContent = user.user_metadata.full_name;
             });
             return;
           }
@@ -1784,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
           await callBackend('/api/user/profile', 'PUT', { name: newName }, token);
           localStorage.setItem('nuvuy_user_name', newName);
           document.querySelectorAll('.user-name').forEach(el => {
-            el.textContent = `${newName} (admin)`;
+            el.textContent = newName;
           });
           showToast('Perfil atualizado com sucesso via Back-end!', 'success');
           return;
@@ -1805,7 +1867,7 @@ document.addEventListener('DOMContentLoaded', () => {
           
           localStorage.setItem('nuvuy_user_name', newName);
           document.querySelectorAll('.user-name').forEach(el => {
-            el.textContent = `${newName} (admin)`;
+            el.textContent = newName;
           });
           showToast('Perfil atualizado com sucesso no Supabase!', 'success');
         } catch (error) {
@@ -1816,7 +1878,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         localStorage.setItem('nuvuy_user_name', newName);
         document.querySelectorAll('.user-name').forEach(el => {
-          el.textContent = `${newName} (admin)`;
+          el.textContent = newName;
         });
         showToast('[SIMULAÇÃO] Perfil atualizado com sucesso!', 'success');
         if (submitBtn) submitBtn.removeAttribute('disabled');
@@ -1935,20 +1997,100 @@ document.addEventListener('DOMContentLoaded', () => {
     const userPlan = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
     updatePlansUI(userPlan);
 
+    // Modal PIX
+    const pixModal = document.getElementById('modal-pix-payment');
+    const closePixBtn = document.getElementById('btn-close-pix-modal');
+    const pixQrContainer = document.getElementById('pix-qr-container');
+    const pixCodeContainer = document.getElementById('pix-code-container');
+    const pixCodeInput = document.getElementById('pix-code-input');
+    const copyPixBtn = document.getElementById('btn-copy-pix');
+
+    const closePixModal = () => {
+      if (pixModal) pixModal.classList.remove('active');
+      subscribeButtons.forEach(b => {
+        b.removeAttribute('disabled');
+        const plan = b.getAttribute('data-plan');
+        const isCurrent = localStorage.getItem('nuvuy_user_plan') === plan;
+        b.textContent = isCurrent ? 'Plano Atual' : 'Fazer Upgrade';
+        if (isCurrent) b.setAttribute('disabled', 'true');
+      });
+    };
+
+    if (closePixBtn) closePixBtn.addEventListener('click', closePixModal);
+    if (pixModal) {
+      pixModal.addEventListener('click', (e) => {
+        if (e.target === pixModal) closePixModal();
+      });
+    }
+    if (copyPixBtn && pixCodeInput) {
+      copyPixBtn.addEventListener('click', () => {
+        pixCodeInput.select();
+        navigator.clipboard.writeText(pixCodeInput.value);
+        showToast('Código PIX copiado!', 'success');
+      });
+    }
+
+    const openPixModal = (planName) => {
+      pixQrContainer.innerHTML = '<div class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></div>';
+      pixCodeContainer.style.display = 'none';
+      if (pixModal) pixModal.classList.add('active');
+    };
+
     // Click Listener para upgrades
     const subscribeButtons = document.querySelectorAll('.btn-subscribe');
     subscribeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const planName = btn.getAttribute('data-plan');
-        showToast(`Redirecionando para o gateway de pagamento para o plano ${planName}...`, 'info');
-        
-        btn.setAttribute('disabled', 'true');
-        btn.textContent = 'Aguardando...';
+        const price = planName === 'Básico' ? 49 : 97;
+        const userId = localStorage.getItem('nuvuy_user_id') || 'guest';
 
+        btn.setAttribute('disabled', 'true');
+        btn.textContent = 'Gerando PIX...';
+
+        // Tenta gerar PIX via backend
+        const token = localStorage.getItem('nuvuy_access_token');
+        if (token) {
+          try {
+            const res = await callBackend('/api/create-preference', 'POST', {
+              planName,
+              price,
+              userId
+            }, token);
+
+            if (res && res.qrCodeImage) {
+              openPixModal(planName);
+              pixQrContainer.innerHTML = `<img src="${res.qrCodeImage}" alt="QR Code PIX" style="width:220px;height:220px;border-radius:12px;" />`;
+              if (res.qrCode) {
+                pixCodeInput.value = res.qrCode;
+                pixCodeContainer.style.display = 'block';
+              }
+              showToast(`Pagamento PIX gerado para o plano ${planName}!`, 'info');
+              return;
+            }
+          } catch (err) {
+            console.log('Backend offline, usando simulação:', err.message);
+          }
+        }
+
+        // Fallback simulado
+        openPixModal(planName);
         setTimeout(() => {
-          localStorage.setItem('nuvuy_user_plan', planName);
-          updatePlansUI(planName);
-          showToast(`Plano ${planName} assinado com sucesso! Seus limites foram atualizados.`, 'success');
+          pixQrContainer.innerHTML = `
+            <div style="width:200px;height:200px;background:linear-gradient(135deg,#00A6FF,#0088cc);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;font-family:Poppins,sans-serif;">
+              <span style="font-size:28px;font-weight:700;">PIX</span>
+              <span style="font-size:11px;opacity:0.8;">SIMULAÇÃO</span>
+            </div>
+          `;
+          pixCodeInput.value = '00020126580014br.gov.bcb.pix0136simulacao@nuvuy.app5204000053039865802BR5925Nuvuy6009Sao Paulo62070503***6304ABCD';
+          pixCodeContainer.style.display = 'block';
+
+          // Simula confirmação após 10s
+          setTimeout(() => {
+            localStorage.setItem('nuvuy_user_plan', planName);
+            updatePlansUI(planName);
+            showToast(`Pagamento confirmado! Plano ${planName} ativado.`, 'success');
+            closePixModal();
+          }, 10000);
         }, 2000);
       });
     });

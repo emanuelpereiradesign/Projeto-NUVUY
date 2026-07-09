@@ -50,19 +50,15 @@
           </svg>
           <span>Planos</span>
         </a>
-      </nav>
-      <div class="user-section">
-        <div class="user-avatar">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D3D3D3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
+        <a class="nav-item btn-logout" id="sidebar-logout" title="Sair da Conta">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-        </div>
-        <div class="user-info" style="display: flex; flex-direction: column; gap: 2px;">
-          <span class="user-name" style="font-size: 13px; font-family: 'Poppins', sans-serif; font-weight: 500; color: var(--text-primary);">Emanuel.P (admin)</span>
-          <a href="login.html" class="btn-logout" style="font-size: 10px; color: var(--text-secondary); text-decoration: none; transition: color 0.2s; width: fit-content;" title="Sair da Conta">Sair</a>
-        </div>
-      </div>
+          <span>Sair</span>
+        </a>
+      </nav>
     </aside>
 
     <main class="main-content">
@@ -71,13 +67,18 @@
           <!-- Placeholder to preserve search bar layout -->
         </div>
         <div class="top-actions">
-          <button class="btn-new-capture" id="btn-voltar-dashboard" onclick="window.location.href='dashboard.html'" style="background: linear-gradient(180deg, #37373c 0%, #202022 100%);">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; vertical-align: middle;">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-            Voltar ao Dashboard
-          </button>
+          <div class="top-user-section">
+            <div class="user-avatar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D3D3D3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <div class="user-info" style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="user-name" style="font-size: 13px; font-family: 'Poppins', sans-serif; font-weight: 500; color: var(--text-primary);">Emanuel.P</span>
+              </div>
+          </div>
+          
         </div>
       </div>
 
@@ -247,6 +248,49 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- Modal Pagamento PIX -->
+  <div class="modal-overlay" id="modal-pix-payment">
+    <div class="modal-container" style="max-width: 420px; padding: 40px; text-align: center;">
+      <button class="modal-close" id="btn-close-pix-modal" aria-label="Fechar modal">&times;</button>
+      <h2 style="font-family: 'Poppins', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px;">Pagamento via PIX</h2>
+      <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px;">
+        Escaneie o QR Code abaixo ou copie o código PIX para pagar.
+      </p>
+      <div id="pix-qr-container" style="margin: 0 auto 24px; width: 220px; height: 220px; background: rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <div class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></div>
+      </div>
+      <div id="pix-code-container" style="display: none; margin-bottom: 24px;">
+        <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Ou copie o código PIX:</p>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="pix-code-input" readonly style="flex:1; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); color: var(--text-primary); font-size: 12px; font-family: 'Poppins', sans-serif;" />
+          <button id="btn-copy-pix" style="padding: 10px 16px; border-radius: 10px; border: none; background: linear-gradient(180deg, #00A6FF 0%, #0088cc 100%); color: #fff; font-size: 12px; font-family: 'Poppins', sans-serif; font-weight: 600; cursor: pointer;">Copiar</button>
+        </div>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); opacity: 0.6;">
+        Após o pagamento, seu plano será atualizado automaticamente.
+      </p>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Logout -->
+  <div class="modal-overlay" id="modal-logout">
+    <div class="modal-container modal-logout-container">
+      <div class="modal-logout-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <h2 class="modal-logout-title">Sair da plataforma</h2>
+      <p class="modal-logout-text">Tem certeza que deseja sair? Você será redirecionado para a tela de login.</p>
+      <div class="modal-logout-actions">
+        <button class="btn-modal-cancel" id="btn-logout-cancel">Cancelar</button>
+        <button class="btn-modal-danger" id="btn-logout-confirm">Sair</button>
+      </div>
+    </div>
   </div>
 
   <div id="toast-container" class="toast-container"></div>

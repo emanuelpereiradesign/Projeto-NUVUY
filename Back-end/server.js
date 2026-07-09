@@ -656,6 +656,80 @@ app.post('/api/auth/logout', async (req, res) => {
   }
 });
 
+// --- MisticPay Integration ---
+const MISTICPAY_API_URL = 'https://api.misticpay.com';
+const misticpayApiKey = process.env.MISTICPAY_API_KEY;
+
+// Rota: Criar preferência de pagamento (gera QR Code PIX)
+app.post('/api/create-preference', async (req, res) => {
+  try {
+    const { planName, price, userId, payerName, payerDocument } = req.body;
+    if (!planName || !price || !userId) {
+      return res.status(400).json({ error: 'planName, price e userId são obrigatórios.' });
+    }
+
+    const response = await fetch(`${MISTICPAY_API_KEY.startsWith('SUA_') ? 'https://api.sandbox.misticpay.com' : MISTICPAY_API_URL}/api/transactions/deposit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${misticpayApiKey}`
+      },
+      body: JSON.stringify({
+        amount: parseFloat(price),
+        payerName: payerName || 'Cliente Nuvuy',
+        payerDocument: payerDocument || '00000000000',
+        transactionId: `nuvuy_${userId}_${planName}_${Date.now()}`,
+        description: `Plano ${planName} - Nuvuy`,
+        projectWebhook: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/webhook/misticpay`
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Erro ao criar pagamento');
+
+    res.json({
+      success: true,
+      qrCode: data.qrCode,
+      qrCodeImage: data.qrCodeImage,
+      transactionId: data.id,
+      externalId: data.clientTransactionId
+    });
+  } catch (error) {
+    console.error(`[${now()}] Erro MisticPay: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Rota: Webhook para confirmar pagamento
+app.post('/api/webhook/misticpay', async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
+
+    if (payload.transactionState === 'COMPLETO' && payload.clientTransactionId) {
+      const parts = payload.clientTransactionId.split('_');
+      if (parts.length >= 3) {
+        const userId = parts[1];
+        const planName = parts[2];
+        console.log(`[${now()}] Pagamento confirmado: userId=${userId}, plan=${planName}`);
+
+        if (supabase) {
+          const { error } = await supabase
+            .from('usuario')
+            .update({ plano: planName.toLowerCase() })
+            .eq('id', userId);
+          if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
+        }
+      }
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error(`[${now()}] Erro no webhook MisticPay: ${error.message}`);
+    res.status(200).json({ received: true });
+  }
+});
+
 app.listen(port, () => {
   console.log(`[${now()}] ==============================`);
   console.log(`[${now()}]  Nuvuy Backend rodando na porta ${port}`);
