@@ -661,6 +661,9 @@ const MISTICPAY_API_URL = 'https://api.misticpay.com';
 const misticpayCi = process.env.MISTICPAY_CI;
 const misticpayCs = process.env.MISTICPAY_CS;
 
+/** Mapa em memória: chave = misticpayTransactionId, valor = { userId, planName, status } */
+const paymentMap = new Map();
+
 // Rota: Criar preferência de pagamento (gera QR Code PIX)
 app.post('/api/create-preference', async (req, res) => {
   try {
@@ -673,7 +676,7 @@ app.post('/api/create-preference', async (req, res) => {
       return res.status(400).json({ error: 'MISTICPAY_CI ou MISTICPAY_CS não configurados no servidor. Verifique as variáveis de ambiente no Render.' });
     }
 
-    const transactionId = `nuvuy_${userId}_${planName}_${Date.now()}`;
+    const customId = `nuvuy_${userId}_${planName}_${Date.now()}`;
 
     console.log(`[${now()}] Chamando MisticPay API: ${MISTICPAY_API_URL}/api/transactions/create`);
     const response = await fetch(`${MISTICPAY_API_URL}/api/transactions/create`, {
@@ -687,7 +690,7 @@ app.post('/api/create-preference', async (req, res) => {
         amount: parseFloat(price),
         payerName: payerName || 'Cliente Nuvuy',
         payerDocument: payerDocument || '00000000000',
-        transactionId,
+        transactionId: customId,
         description: `Plano ${planName} - Nuvuy`,
         projectWebhook: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/webhook/misticpay`
       })
@@ -697,13 +700,18 @@ app.post('/api/create-preference', async (req, res) => {
     console.log(`[${now()}] Resposta MisticPay: status=${response.status}`, JSON.stringify(data));
     if (!response.ok) throw new Error(data.message || data.error || `Erro MisticPay (${response.status})`);
 
+    const misticpayId = String(data.data?.transactionId || '');
+    if (misticpayId) {
+      paymentMap.set(misticpayId, { userId, planName, customId, status: 'PENDENTE' });
+    }
+
     res.json({
       success: true,
       qrCodeBase64: data.data?.qrCodeBase64 || null,
       qrcodeUrl: data.data?.qrcodeUrl || null,
       copyPaste: data.data?.copyPaste || null,
-      transactionId: data.data?.transactionId || null,
-      externalId: transactionId
+      transactionId: misticpayId,
+      externalId: customId
     });
   } catch (error) {
     console.error(`[${now()}] Erro MisticPay: ${error.message}`);
@@ -718,14 +726,60 @@ app.post('/api/webhook/misticpay', async (req, res) => {
     console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
 
     if (payload.transactionType === 'DEPOSITO' && payload.status === 'COMPLETO') {
-      const transactionId = payload.clientTransactionId || payload.transactionId;
-      console.log(`[${now()}] Pagamento confirmado: transactionId=${transactionId}`);
+      const misticpayId = String(payload.transactionId);
+      const payment = paymentMap.get(misticpayId);
+
+      if (payment) {
+        payment.status = 'COMPLETO';
+        console.log(`[${now()}] Pagamento confirmado: userId=${payment.userId}, plan=${payment.planName}`);
+
+        if (supabase) {
+          const { error } = await supabase
+            .from('usuario')
+            .update({ plano: payment.planName.toLowerCase() })
+            .eq('id', payment.userId);
+          if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
+        }
+      } else {
+        console.log(`[${now()}] Webhook recebido para transação não mapeada: ${misticpayId}`);
+      }
     }
 
     res.status(200).json({ received: true });
   } catch (error) {
     console.error(`[${now()}] Erro no webhook MisticPay: ${error.message}`);
     res.status(200).json({ received: true });
+  }
+});
+
+// Rota: Verificar status do pagamento (polling do frontend)
+app.get('/api/check-payment/:customId', async (req, res) => {
+  try {
+    const { customId } = req.params;
+
+    for (const [misticpayId, payment] of paymentMap.entries()) {
+      if (payment.customId === customId) {
+        return res.json({ status: payment.status, planName: payment.planName });
+      }
+    }
+
+    // Se não achou no mapa, tenta checar na MisticPay
+    const numericId = customId.split('_').pop();
+    const checkResponse = await fetch(`${MISTICPAY_API_URL}/api/transactions/check`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ci': misticpayCi,
+        'cs': misticpayCs
+      },
+      body: JSON.stringify({ transactionId: parseInt(numericId) || customId })
+    });
+    const checkData = await checkResponse.json();
+    const txState = checkData.transaction?.transactionState || 'PENDENTE';
+    res.json({ status: txState });
+  } catch (error) {
+    console.error(`[${now()}] Erro ao verificar pagamento: ${error.message}`);
+    res.json({ status: 'PENDENTE' });
   }
 });
 

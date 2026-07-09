@@ -2065,6 +2065,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 pixCodeContainer.style.display = 'block';
               }
               showToast(`Pagamento PIX gerado para o plano ${planName}!`, 'info');
+
+              // Polling: verifica a cada 5s se o pagamento foi confirmado
+              const pollInterval = setInterval(async () => {
+                try {
+                  const pollRes = await callBackend(`/api/check-payment/${res.externalId}`, 'GET', null, token);
+                  if (pollRes && pollRes.status === 'COMPLETO') {
+                    clearInterval(pollInterval);
+                    localStorage.setItem('nuvuy_user_plan', planName);
+                    updatePlansUI(planName);
+                    showToast(`Pagamento confirmado! Plano ${planName} ativado.`, 'success');
+                    closePixModal();
+                  }
+                } catch (e) {
+                  console.log('Polling error:', e.message);
+                }
+              }, 5000);
               return;
             }
           } catch (err) {
