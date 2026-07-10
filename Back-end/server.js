@@ -95,7 +95,8 @@ app.post('/api/auth/signup', async (req, res) => {
       options: {
         data: {
           full_name: name
-        }
+        },
+        emailRedirectTo: `${process.env.FRONTEND_URL || 'http://localhost:5500'}/dashboard.html`
       }
     });
 
