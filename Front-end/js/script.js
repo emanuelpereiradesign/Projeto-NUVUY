@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (type === 'signup' || type === 'invite' || hashStr.includes('type=signup')) {
       localStorage.setItem('nuvuy_welcome_message', 'Conta confirmada e ativada com sucesso! Bem-vindo ao Nuvuy.');
+      localStorage.setItem('nuvuy_user_plan', 'Gratuito');
     } else if (type === 'recovery') {
       localStorage.setItem('nuvuy_welcome_message', 'Sessão iniciada para redefinição. Por favor, atualize sua senha nas configurações.');
     }
