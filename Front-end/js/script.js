@@ -338,6 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('nuvuy_user_name');
       localStorage.removeItem('nuvuy_access_token');
       localStorage.removeItem('nuvuy_refresh_token');
+      localStorage.removeItem('nuvuy_user_plan');
+      localStorage.removeItem('nuvuy_simulated_leads');
       window.location.href = getPageUrl('login');
     }
   };
@@ -392,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     loadDashboardLeads();
+    fetchUsageInfo();
   }
 
   const navItems = document.querySelectorAll('.nav-item');
@@ -808,11 +811,26 @@ document.addEventListener('DOMContentLoaded', () => {
             window.addLeadsToIntelligentPanel(leads);
           }
 
+          // Atualiza card de leads disponíveis
+          if (resData.creditos_restantes !== undefined) {
+            updateUsageAfterCapture(resData.creditos_restantes, resData.leads_restantes);
+          }
+
           showToast(`${leads.length} leads reais capturados!`, 'success');
           resetForm();
           return;
         } catch (err) {
           console.error('[Captura] Erro:', err.message);
+          // Trata erro específico de créditos insuficientes
+          if (err.message && err.message.includes('Créditos insuficientes')) {
+            showToast('Créditos insuficientes! Faça um upgrade de plano para continuar captando.', 'error');
+            resetForm();
+            // Após fechar o toast, redireciona para planos
+            setTimeout(() => {
+              window.location.href = getPageUrl('planos');
+            }, 3000);
+            return;
+          }
           showToast(`Erro na captura: ${err.message}`, 'error');
           resetForm();
           return;
@@ -947,6 +965,48 @@ document.addEventListener('DOMContentLoaded', () => {
       totalEl.textContent = Math.max(0, current + quenteDiff + mornoDiff + frioDiff);
     }
   }
+
+  // Busca dados de créditos/leads restantes do backend
+  const fetchUsageInfo = async () => {
+    const disponiveisEl = document.getElementById('stat-leads-disponiveis');
+    const subEl = document.getElementById('stat-leads-sub');
+    if (!disponiveisEl) return;
+
+    const backendActive = await isBackendActive();
+    const token = localStorage.getItem('nuvuy_access_token');
+
+    if (backendActive && token) {
+      try {
+        const res = await callBackend('/api/user/usage', 'GET', null, token);
+        if (res && res.success) {
+          disponiveisEl.textContent = res.leads_restantes;
+          const planLabel = res.plan.charAt(0).toUpperCase() + res.plan.slice(1);
+          subEl.textContent = `de ${res.leads_total} leads/mês • ${planLabel}`;
+          return;
+        }
+      } catch (err) {
+        console.error('Erro ao buscar uso:', err);
+      }
+    }
+
+    // Fallback: mostra o plano do localStorage
+    const plan = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
+    disponiveisEl.textContent = '?';
+    subEl.textContent = `${plan}`;
+  };
+
+  // Atualiza o card de leads disponíveis após uma captura
+  const updateUsageAfterCapture = (creditosRestantes, leadsRestantes) => {
+    const disponiveisEl = document.getElementById('stat-leads-disponiveis');
+    if (disponiveisEl && leadsRestantes !== undefined) {
+      disponiveisEl.textContent = leadsRestantes;
+    }
+    const subEl = document.getElementById('stat-leads-sub');
+    if (subEl && creditosRestantes !== undefined) {
+      const currentText = subEl.textContent;
+      subEl.textContent = currentText.replace(/^\d+/, leadsRestantes);
+    }
+  };
 
   // Toast System
   function showToast(message, type = 'success') {
@@ -2057,7 +2117,8 @@ document.addEventListener('DOMContentLoaded', () => {
     subscribeButtons.forEach(btn => {
       btn.addEventListener('click', async () => {
         const planName = btn.getAttribute('data-plan');
-        const price = planName === 'Básico' ? 49 : 97;
+        const planPrices = { 'Gratuito': 0, 'Básico': 49, 'Pro': 97, 'Business': 149 };
+        const price = planPrices[planName];
         const userId = localStorage.getItem('nuvuy_user_id') || 'guest';
 
         btn.setAttribute('disabled', 'true');
@@ -2092,6 +2153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatePlansUI(planName);
                     showToast(`Pagamento confirmado! Plano ${planName} ativado.`, 'success');
                     closePixModal();
+                    fetchUsageInfo();
                   }
                 } catch (e) {
                   console.log('Polling error:', e.message);
@@ -2108,24 +2170,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Servidor de pagamento indisponível. Tente novamente mais tarde.', 'error');
         btn.removeAttribute('disabled');
         btn.textContent = 'Fazer Upgrade';
-      });
-    });
-
-    // Click Listener para compra de recargas
-    const buyTokenButtons = document.querySelectorAll('.btn-buy-tokens');
-    buyTokenButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tokens = btn.getAttribute('data-tokens');
-        const price = btn.getAttribute('data-price');
-        showToast(`Abrindo PIX/Cartão para compra de +${tokens} Leads (R$ ${price})...`, 'info');
-
-        btn.setAttribute('disabled', 'true');
-        const originalText = btn.textContent;
-        btn.textContent = 'Processando...';
-
-        showToast('Servidor de pagamento indisponível. Tente novamente mais tarde.', 'error');
-        btn.removeAttribute('disabled');
-        btn.textContent = originalText;
       });
     });
   }

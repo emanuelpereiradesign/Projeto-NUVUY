@@ -59,12 +59,73 @@ if (
   console.warn('Supabase NÃO configurado no Back-end. Por favor, crie um arquivo .env com suas chaves.');
 }
 
+// Map: nome do plano → créditos mensais
+const PLAN_CREDITS = {
+  gratuito: 100,
+  básico: 400,
+  basico: 400,
+  pro: 1200,
+  business: 2000
+};
+
 // Auxiliar para extrair o JWT do cabeçalho de Autorização (Bearer Token)
 const getAuthToken = (req) => {
   if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
     return req.headers.authorization.split(' ')[1];
   }
   return null;
+};
+
+// Cria um cliente Supabase autenticado com o token da requisição
+const authedClient = (token) =>
+  createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+
+// Verifica se o período do usuário expirou e renova os créditos
+const checkAndRenewCredits = async (userClient, user) => {
+  const { data: usuario } = await userClient
+    .from('usuario')
+    .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
+    .eq('id', user.id)
+    .single();
+
+  if (!usuario) return usuario;
+
+  // Se nunca foram inicializados (pré-migração), seta valores padrão
+  if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
+    const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
+    const agora = new Date();
+    await userClient
+      .from('usuario')
+      .update({
+        creditos_restantes: creditos,
+        creditos_utilizados: 0,
+        periodo_inicio: agora.toISOString(),
+        proxima_renovacao: new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      })
+      .eq('id', user.id);
+    return { ...usuario, creditos_restantes: creditos, creditos_utilizados: 0 };
+  }
+
+  const agora = new Date();
+  const renovacao = usuario.proxima_renovacao ? new Date(usuario.proxima_renovacao) : null;
+
+  if (!renovacao || agora >= renovacao) {
+    const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
+    await userClient
+      .from('usuario')
+      .update({
+        creditos_restantes: creditos,
+        creditos_utilizados: 0,
+        periodo_inicio: agora.toISOString(),
+        proxima_renovacao: new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      })
+      .eq('id', user.id);
+    return { ...usuario, creditos_restantes: creditos, creditos_utilizados: 0 };
+  }
+
+  return usuario;
 };
 
 
@@ -75,6 +136,44 @@ app.get('/api/status', (req, res) => {
     status: 'online',
     supabaseConfigured: !!supabase
   });
+});
+
+// Rota: obter uso de créditos do usuário logado
+app.get('/api/user/usage', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase não inicializado.' });
+
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+
+  try {
+    const userClient = authedClient(token);
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const usuario = await checkAndRenewCredits(userClient, user);
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
+    const leadsRestantes = Math.floor(usuario.creditos_restantes / 2);
+    const leadsTotal = Math.floor(creditos / 2);
+    const leadsUtilizados = usuario.creditos_utilizados
+      ? Math.floor(usuario.creditos_utilizados / 2)
+      : 0;
+
+    res.json({
+      success: true,
+      plan: usuario.plano,
+      creditos_restantes: usuario.creditos_restantes,
+      creditos_utilizados: usuario.creditos_utilizados,
+      leads_restantes: leadsRestantes,
+      leads_total: leadsTotal,
+      leads_utilizados: leadsUtilizados,
+      periodo_inicio: usuario.periodo_inicio,
+      proxima_renovacao: usuario.proxima_renovacao
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 // Rota de Cadastro de Usuário (signUp)
@@ -252,18 +351,28 @@ app.post('/api/tarefas', async (req, res) => {
   console.log(`[${now()}] Iniciando captura: ${quantidade}x "${nicho}" em "${regiao}"`);
 
   try {
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    });
+    const userClient = authedClient(token);
 
     // 1. Autentica e obtém o usuário atual
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+    }
+
+    // 1b. Verifica créditos do usuário
+    const usuario = await checkAndRenewCredits(userClient, user);
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+    const leadsSolicitados = parseInt(quantidade) || 1;
+    const creditosNecessarios = leadsSolicitados * 2;
+    if (usuario.creditos_restantes < creditosNecessarios) {
+      return res.status(403).json({
+        error: 'Créditos insuficientes',
+        leads_restantes: Math.floor(usuario.creditos_restantes / 2),
+        leads_solicitados: leadsSolicitados,
+        message: `Você possui apenas ${Math.floor(usuario.creditos_restantes / 2)} lead(s) disponível(is) este mês. Faça um upgrade de plano para continuar captando.`
+      });
     }
 
     // 2. Garante que as fontes "Google Maps" e "Instagram" existam na tabela public.fonte
@@ -422,8 +531,24 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    console.log(`[${now()}] [5/5] Captura concluída: ${generatedLeads.length} leads retornados`);
-    res.status(201).json({ success: true, data: generatedLeads });
+    // 6. Deduz créditos do usuário
+    const leadsCapturados = generatedLeads.length;
+    const creditosGastos = leadsCapturados * 2;
+    await userClient
+      .from('usuario')
+      .update({
+        creditos_restantes: usuario.creditos_restantes - creditosGastos,
+        creditos_utilizados: (usuario.creditos_utilizados || 0) + creditosGastos
+      })
+      .eq('id', user.id);
+    console.log(`[${now()}] [5/5] Captura concluída: ${leadsCapturados} leads retornados, ${creditosGastos} créditos deduzidos`);
+
+    res.status(201).json({
+      success: true,
+      data: generatedLeads,
+      creditos_restantes: usuario.creditos_restantes - creditosGastos,
+      leads_restantes: Math.floor((usuario.creditos_restantes - creditosGastos) / 2)
+    });
   } catch (error) {
     console.error(`[${now()}] ERRO na captura: ${error.message}`);
     res.status(400).json({ error: error.message });
@@ -735,9 +860,20 @@ app.post('/api/webhook/misticpay', async (req, res) => {
         console.log(`[${now()}] Pagamento confirmado: userId=${payment.userId}, plan=${payment.planName}`);
 
         if (supabase) {
+          const planName = payment.planName.toLowerCase();
+          const creditos = PLAN_CREDITS[planName] || 100;
+          const agora = new Date().toISOString();
+          const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
           const { error } = await supabase
             .from('usuario')
-            .update({ plano: payment.planName.toLowerCase() })
+            .update({
+              plano: planName,
+              creditos_restantes: creditos,
+              creditos_utilizados: 0,
+              periodo_inicio: agora,
+              proxima_renovacao: renovacao
+            })
             .eq('id', payment.userId);
           if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
         }
