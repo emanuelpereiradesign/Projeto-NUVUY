@@ -2104,26 +2104,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Fallback simulado
-        openPixModal(planName);
-        setTimeout(() => {
-          pixQrContainer.innerHTML = `
-            <div style="width:200px;height:200px;background:linear-gradient(135deg,#00A6FF,#0088cc);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#fff;font-family:Poppins,sans-serif;">
-              <span style="font-size:28px;font-weight:700;">PIX</span>
-              <span style="font-size:11px;opacity:0.8;">SIMULAÇÃO</span>
-            </div>
-          `;
-          pixCodeInput.value = '00020126580014br.gov.bcb.pix0136simulacao@nuvuy.app5204000053039865802BR5925Nuvuy6009Sao Paulo62070503***6304ABCD';
-          pixCodeContainer.style.display = 'block';
-
-          // Simula confirmação após 10s
-          setTimeout(() => {
-            localStorage.setItem('nuvuy_user_plan', planName);
-            updatePlansUI(planName);
-            showToast(`Pagamento confirmado! Plano ${planName} ativado.`, 'success');
-            closePixModal();
-          }, 10000);
-        }, 2000);
+        // Fallback: backend offline, mostra toast de erro
+        showToast('Servidor de pagamento indisponível. Tente novamente mais tarde.', 'error');
+        btn.removeAttribute('disabled');
+        btn.textContent = 'Fazer Upgrade';
       });
     });
 
@@ -2139,16 +2123,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalText = btn.textContent;
         btn.textContent = 'Processando...';
 
-        setTimeout(() => {
-          btn.removeAttribute('disabled');
-          btn.textContent = originalText;
-          
-          // Adiciona os créditos ao saldo
-          const currentTokens = parseInt(localStorage.getItem('nuvuy_user_tokens') || '0');
-          localStorage.setItem('nuvuy_user_tokens', currentTokens + parseInt(tokens));
-          
-          showToast(`Recarga de +${tokens} Leads aprovada! Créditos adicionados ao seu saldo.`, 'success');
-        }, 2500);
+        showToast('Servidor de pagamento indisponível. Tente novamente mais tarde.', 'error');
+        btn.removeAttribute('disabled');
+        btn.textContent = originalText;
       });
     });
   }
