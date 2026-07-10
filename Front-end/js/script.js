@@ -28,10 +28,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // Captura hash do Supabase de confirmação de e-mail ou reset de senha
   if (window.location.hash) {
     const hashStr = window.location.hash.substring(1);
-    if (hashStr.includes('type=signup') || hashStr.includes('type=invite') || hashStr.includes('access_token=')) {
-      localStorage.setItem('nuvuy_welcome_message', '🎉 Conta confirmada e ativada com sucesso! Bem-vindo ao Nuvuy.');
-    } else if (hashStr.includes('type=recovery')) {
-      localStorage.setItem('nuvuy_welcome_message', '🔐 Sessão iniciada para redefinição. Por favor, atualize sua senha nas configurações.');
+    const params = new URLSearchParams(hashStr);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    if (accessToken) {
+      localStorage.setItem('nuvuy_access_token', accessToken);
+      if (refreshToken) localStorage.setItem('nuvuy_refresh_token', refreshToken);
+    }
+
+    if (type === 'signup' || type === 'invite' || hashStr.includes('type=signup')) {
+      localStorage.setItem('nuvuy_welcome_message', 'Conta confirmada e ativada com sucesso! Bem-vindo ao Nuvuy.');
+    } else if (type === 'recovery') {
+      localStorage.setItem('nuvuy_welcome_message', 'Sessão iniciada para redefinição. Por favor, atualize sua senha nas configurações.');
+    }
+
+    // Limpa o hash da URL sem recarregar a página
+    if (accessToken) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
     }
   }
 
