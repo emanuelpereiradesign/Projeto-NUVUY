@@ -967,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Busca dados de créditos/leads restantes do backend
-  const fetchUsageInfo = async () => {
+  async function fetchUsageInfo() {
     const disponiveisEl = document.getElementById('stat-leads-disponiveis');
     const subEl = document.getElementById('stat-leads-sub');
     if (!disponiveisEl) return;
