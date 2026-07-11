@@ -24,7 +24,7 @@ O Nuvuy (captura de leads) é uma ferramenta própria de web scraping e classifi
 | Ator | Descrição |
 |------|-----------|
 | **Usuário (Assinante)** | Ator principal. Representa os profissionais que utilizam o dashboard web. Inicia as campanhas de busca, consome os créditos do plano e acessa os dados dos leads. |
-| **Sistemas Externos (Atores Não-Humanos)** | Representam as plataformas das quais o sistema extrai os dados (Google Maps via Places API) e a API de IA (OpenRouter), responsável por processar e classificar as informações capturadas de forma automatizada. |
+| **Sistemas Externos (Atores Não-Humanos)** | Representam as plataformas das quais o sistema extrai os dados: Google Maps via Places API, Google Custom Search para perfis do Instagram, e a API de IA (OpenRouter), responsável por processar e classificar as informações capturadas de forma automatizada. |
 
 ## 5. Minimundo do Projeto
 
@@ -44,10 +44,11 @@ A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel,
 4. Back-end executa o **scraper via Google Places API** imediatamente (de forma síncrona):
    - Busca estabelecimentos na região com o termo informado
    - Para cada resultado, busca detalhes (telefone, website) via Place Details
-5. Para cada lead capturado, o sistema envia os dados para o **OpenRouter LLM**, que analisa a presença digital e retorna pontuação (0–100), classificação (quente/morno/frio) e justificativa com roteiro de abordagem.
-6. Caso a IA falhe ou não esteja configurada, um **fallback simulado** classifica com base em regras fixas (site, seguidores, avaliação).
-7. Tudo é salvo no Supabase: `lead`, `metrica_google_maps` e `score`.
-8. Back-end retorna os leads formatados → Front-end insere os cards nas colunas do Kanban.
+5. Para cada lead capturado que tenha Instagram, o sistema busca o perfil via **Google Custom Search API** e tenta extrair seguidores e postagens da página pública.
+6. O sistema envia os dados (Maps + Instagram) para o **OpenRouter LLM**, que analisa a presença digital e retorna pontuação (0–100), classificação (quente/morno/frio) e justificativa com roteiro de abordagem.
+7. Caso a IA falhe ou não esteja configurada, um **fallback simulado** classifica com base em regras fixas (site, seguidores, avaliação).
+8. Tudo é salvo no Supabase: `lead`, `metrica_google_maps`, `metrica_instagram` e `score`.
+9. Back-end retorna os leads formatados → Front-end insere os cards nas colunas do Kanban.
 9. Se a busca demorar mais de 4 segundos, o front-end exibe toast "Estamos efetuando sua busca, aguarde apenas um momento...".
 10. Modal de captura fecha automaticamente ao finalizar (sucesso ou erro).
 
@@ -83,7 +84,7 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 | ID | Descrição | Prioridade |
 |----|-----------|------------|
 | RF01 | Scraping de dados do Google Maps via Google Places API (nome, endereço, telefone, avaliação, website) | Alta |
-| RF02 | Instagram não é mais scrapperado; mantido apenas como indicador visual no card | Baixa |
+| RF02 | Instagram é scrapperado via Google Custom Search + fetch público (encontra perfil, seguidores e postagens) | Média |
 | RF03 | Fontes de dados configuráveis (ativa/desativa via toggle no modal) | Alta |
 
 #### Módulo de Classificação de Leads
@@ -375,6 +376,7 @@ Usuário (Navegador)
     └── Render ── API Express
                       │
                       ├── scraper.js (Google Places API → leads reais)
+                      ├── scraper_instagram.js (Google Custom Search → perfis Instagram)
                       ├── ai.js (OpenRouter LLM → classificação)
                       └── Supabase (persistência + auth)
 
