@@ -39,7 +39,9 @@ PROJETO-NUVUY/
 │   ├ server.js                    # API Express + Supabase
 │   ├ ai.js                        # inteligência SDR (OpenRouter LLM + fallback)
 │   ├ scraper.js                   # Google Places API (dados reais) — SEM OSM/fallback
+│   ├ scraper_instagram.js         # Google Custom Search + fetch público para Instagram
 │   ├ .env                         # chaves de API e URL do banco
+│   ├ .env.example                 # template das variáveis de ambiente
 │   └─ package.json                # scripts npm e dependências
 ├─ DOCUMENTO.md                    # documentação completa do projeto
 ├─ ESTRUTURA B.md                  # diagrama ER e relacionamentos
@@ -70,6 +72,7 @@ PROJETO-NUVUY/
   4. Redireciona para `login.html`.
   *Importante*: Se esses tokens não forem limpos, `checkSession()` redirecionará de volta ao dashboard, bloqueando o logout.
 - **Web scraper** (`scraper.js`): usa **Google Places API** (textsearch + details) para dados reais de empresas. Sem OSM ou fallback fictício. Retorna nome, telefone, website, avaliação e endereço reais.
+- **Instagram** (`scraper_instagram.js`): usa **Google Custom Search API** para encontrar perfis do Instagram pelo nome da empresa, depois tenta extrair seguidores e postagens da página pública. Requer `GOOGLE_API_KEY` e `GOOGLE_CX` no `.env`.
 - **Fluxo de captura**:
   1. Usuário preenche modal → envia.
   2. Frontend mostra spinner + `setTimeout` toast após 4s ("Estamos efetuando sua busca...").
