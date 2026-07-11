@@ -82,15 +82,9 @@ const authedClient = (token) =>
     global: { headers: { Authorization: `Bearer ${token}` } }
   });
 
-// Cria um cliente Supabase com service_role se disponível, senão usa anon key
-const adminClient = () => {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
-  return createClient(supabaseUrl, key);
-};
-
 // Verifica se o período do usuário expirou e renova os créditos
 const checkAndRenewCredits = async (userClient, user) => {
-  let { data: usuario, error: queryError } = await adminClient()
+  let { data: usuario, error: queryError } = await userClient
     .from('usuario')
     .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
     .eq('id', user.id)
@@ -118,24 +112,9 @@ const checkAndRenewCredits = async (userClient, user) => {
       });
 
     if (insertError) {
-      // Se falhou (ex: RLS), tenta com client admin
-      try {
-        const admin = adminClient();
-        await admin.from('usuario').upsert({
-          id: user.id,
-          nome,
-          email,
-          plano: 'gratuito',
-          creditos_restantes: 100,
-          creditos_utilizados: 0,
-          periodo_inicio: agora,
-          proxima_renovacao: renovacao
-        }, { onConflict: 'id' });
-      } catch (adminErr) {
-        console.warn(`[${now()}] Não foi possível criar registro de usuário: ${adminErr.message}`);
-        // Retorna dados default para não bloquear a captura
-        return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
-      }
+      console.warn(`[${now()}] Erro ao criar registro de usuário: ${insertError.message}`);
+      // Retorna dados default para não bloquear a captura
+      return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
     }
 
     usuario = {
@@ -151,7 +130,7 @@ const checkAndRenewCredits = async (userClient, user) => {
   if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
     const agora = new Date();
-    await adminClient()
+    await userClient
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -168,7 +147,7 @@ const checkAndRenewCredits = async (userClient, user) => {
 
   if (!renovacao || agora >= renovacao) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
-    await adminClient()
+    await userClient
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -586,10 +565,10 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    // 6. Deduz créditos do usuário (usa adminClient para bypass de RLS)
+    // 6. Deduz créditos do usuário
     const leadsCapturados = generatedLeads.length;
     const creditosGastos = leadsCapturados * 2;
-    await adminClient()
+    await userClient
       .from('usuario')
       .update({
         creditos_restantes: usuario.creditos_restantes - creditosGastos,
@@ -920,7 +899,7 @@ app.post('/api/webhook/misticpay', async (req, res) => {
           const agora = new Date().toISOString();
           const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          const { error } = await adminClient()
+          const { error } = await supabase
             .from('usuario')
             .update({
               plano: planName,
