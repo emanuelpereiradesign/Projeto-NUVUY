@@ -82,15 +82,70 @@ const authedClient = (token) =>
     global: { headers: { Authorization: `Bearer ${token}` } }
   });
 
+// Cria um cliente Supabase com service_role se disponível, senão usa anon key
+const adminClient = () => {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+  return createClient(supabaseUrl, key);
+};
+
 // Verifica se o período do usuário expirou e renova os créditos
 const checkAndRenewCredits = async (userClient, user) => {
-  const { data: usuario } = await userClient
+  let { data: usuario, error: queryError } = await userClient
     .from('usuario')
     .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
     .eq('id', user.id)
     .single();
 
-  if (!usuario) return usuario;
+  // Se não achou o usuário na tabela (pré-migração ou trigger falhou), cria o registro
+  if (!usuario) {
+    const nome = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
+    const email = user.email || '';
+    const agora = new Date().toISOString();
+    const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Tenta inserir com o client autenticado do usuário
+    const { error: insertError } = await userClient
+      .from('usuario')
+      .insert({
+        id: user.id,
+        nome,
+        email,
+        plano: 'gratuito',
+        creditos_restantes: 100,
+        creditos_utilizados: 0,
+        periodo_inicio: agora,
+        proxima_renovacao: renovacao
+      });
+
+    if (insertError) {
+      // Se falhou (ex: RLS), tenta com client admin
+      try {
+        const admin = adminClient();
+        await admin.from('usuario').upsert({
+          id: user.id,
+          nome,
+          email,
+          plano: 'gratuito',
+          creditos_restantes: 100,
+          creditos_utilizados: 0,
+          periodo_inicio: agora,
+          proxima_renovacao: renovacao
+        }, { onConflict: 'id' });
+      } catch (adminErr) {
+        console.warn(`[${now()}] Não foi possível criar registro de usuário: ${adminErr.message}`);
+        // Retorna dados default para não bloquear a captura
+        return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
+      }
+    }
+
+    usuario = {
+      plano: 'gratuito',
+      creditos_restantes: 100,
+      creditos_utilizados: 0,
+      periodo_inicio: agora,
+      proxima_renovacao: renovacao
+    };
+  }
 
   // Se nunca foram inicializados (pré-migração), seta valores padrão
   if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
