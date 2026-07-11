@@ -90,7 +90,7 @@ const adminClient = () => {
 
 // Verifica se o período do usuário expirou e renova os créditos
 const checkAndRenewCredits = async (userClient, user) => {
-  let { data: usuario, error: queryError } = await userClient
+  let { data: usuario, error: queryError } = await adminClient()
     .from('usuario')
     .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
     .eq('id', user.id)
@@ -151,7 +151,7 @@ const checkAndRenewCredits = async (userClient, user) => {
   if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
     const agora = new Date();
-    await userClient
+    await adminClient()
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -168,7 +168,7 @@ const checkAndRenewCredits = async (userClient, user) => {
 
   if (!renovacao || agora >= renovacao) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
-    await userClient
+    await adminClient()
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -586,10 +586,10 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    // 6. Deduz créditos do usuário
+    // 6. Deduz créditos do usuário (usa adminClient para bypass de RLS)
     const leadsCapturados = generatedLeads.length;
     const creditosGastos = leadsCapturados * 2;
-    await userClient
+    await adminClient()
       .from('usuario')
       .update({
         creditos_restantes: usuario.creditos_restantes - creditosGastos,
@@ -920,7 +920,7 @@ app.post('/api/webhook/misticpay', async (req, res) => {
           const agora = new Date().toISOString();
           const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          const { error } = await supabase
+          const { error } = await adminClient()
             .from('usuario')
             .update({
               plano: planName,
