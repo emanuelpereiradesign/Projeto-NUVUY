@@ -40,7 +40,7 @@ A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel,
 
 1. Usuário preenche o modal de captura com nicho, região, quantidade e fontes (apenas Google Maps funcional).
 2. Front-end envia requisição `POST /api/tarefas` para o backend Express (Render ou localhost:3000).
-3. Back-end verifica o token JWT do usuário e cria o registro da tarefa no Supabase.
+3. Back-end verifica o token JWT do usuário e checa se há **créditos suficientes** (1 lead = 2 créditos). Se não, retorna 403 com redirect para `/planos`.
 4. Back-end executa o **scraper via Google Places API** imediatamente (de forma síncrona):
    - Busca estabelecimentos na região com o termo informado
    - Para cada resultado, busca detalhes (telefone, website) via Place Details
@@ -134,9 +134,11 @@ Estende `auth.users` com dados de plano e consumo.
 | nome | text | Nome do usuário |
 | email | text | Email |
 | data_cadastro | timestamptz | Data de cadastro (default `now()`) |
-| id_plano | UUID (FK → `plano.id`) | Plano contratado |
-| leads_utilizados | integer | Leads consumidos no mês |
-| saldo_tokens | integer | Saldo de tokens extras |
+| plano | text | Nome do plano em lowercase (gratuito, básico, pro, business) |
+| creditos_restantes | integer | Créditos disponíveis no período (1 lead = 2 créditos) |
+| creditos_utilizados | integer | Créditos consumidos no período |
+| periodo_inicio | timestamptz | Início do ciclo de faturamento |
+| proxima_renovacao | timestamptz | Data de renovação dos créditos |
 
 #### `plano`
 Planos de assinatura.
@@ -144,11 +146,12 @@ Planos de assinatura.
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
 | id | UUID (PK) | Chave primária |
-| nome | text | Nome do plano (Gratuito, Básico, Pro) |
-| valor | numeric | Valor mensal (0, 49, 97) |
+| nome | text | Nome do plano (Gratuito, Básico, Pro, Business) |
+| valor | numeric | Valor mensal (0, 49, 97, 149) |
 | limite_mensal | integer | Limite mensal de leads |
 | max_leads_tarefa | integer | Máx. leads por tarefa (10) |
 | max_tarefas_mes | integer | Máx. tarefas por mês |
+| creditos_mensais | integer | Créditos mensais (1 lead = 2 créditos) |
 | created_at | timestamptz | Data de criação |
 
 #### `tarefas`
@@ -238,7 +241,7 @@ Classificação e pontuação do lead gerada pela IA.
 
 #### Trigger: `on_auth_user_created`
 
-Quando um novo usuário se cadastra via Supabase Auth, o trigger dispara a função `handle_new_user()`, que insere automaticamente uma linha em `public.usuario` vinculada ao plano **Gratuito**.
+Quando um novo usuário se cadastra via Supabase Auth, o trigger dispara a função `handle_new_user()`, que insere automaticamente uma linha em `public.usuario` com plano **Gratuito** e **100 créditos** (50 leads).
 
 #### RLS (Row Level Security)
 
@@ -267,13 +270,16 @@ Todas as tabelas possuem políticas de segurança que restringem o acesso a `aut
 
 ### 9.1 Planos de Assinatura
 
-| Plano | Valor | Leads/mês | Leads por tarefa | Tarefas/mês |
-|-------|-------|-----------|-----------------|-------------|
-| **Gratuito** | R$ 0 | 50 | Até 10 | Máx. 5 |
-| **Básico** | R$ 49/mês | 200 | Até 10 | Máx. 20 |
-| **Pro** | R$ 97/mês | 600 | Até 10 | Máx. 60 |
+| Plano | Valor | Leads/mês | Créditos/mês | Leads por tarefa | Tarefas/mês |
+|-------|-------|-----------|-------------|-----------------|-------------|
+| **Gratuito** | R$ 0 | 50 | 100 | Até 10 | Máx. 5 |
+| **Básico** | R$ 49/mês | 200 | 400 | Até 10 | Máx. 20 |
+| **Pro** | R$ 97/mês | 600 | 1200 | Até 10 | Máx. 60 |
+| **Business** | R$ 149/mês | 1000 | 2000 | Até 10 | Máx. 100 |
 
-**Recarga de tokens:** saldo extra de leads, funcionando como crédito de operadora (valores a definir).
+### 9.2 Sistema de Créditos
+
+Cada lead capturado consome **2 créditos**. Ao assinar ou renovar o plano, os créditos são creditados na conta. Quando os créditos terminam, o sistema bloqueia novas capturas e redireciona o usuário para a página de planos. Os créditos são renovados automaticamente a cada 30 dias.
 
 ## 10. Análise de Custos
 
@@ -354,7 +360,7 @@ Validar a plataforma Nuvuy sem custo inicial, usando:
 - **OpenRouter** → classificação inteligente de leads via LLM
 - **Google Places API** → scraper de dados reais de estabelecimentos
 - **UptimeRobot** → mantém Render acordado (ping a cada 5 min)
-- **Planos e tokens** → monetização clara e escalável
+- **Planos e créditos** → monetização clara e escalável (1 lead = 2 créditos, renovação automática a cada 30 dias)
 
 ### Diagrama de Arquitetura (Resumido)
 

@@ -30,7 +30,7 @@ PROJETO-NUVUY/
 │   ├ leads-inteligentes.html      # métricas, lista de leads, roteiro IA
 │   ├ login.html                   # login/cadastro (glassmorphism, sem sidebar)
 │   ├ configuracoes.html           # perfil, senha, predefinições do agente
-│   ├ planos.html                  # assinatura e recarga de créditos
+│   ├ planos.html                  # planos (Free, Básico, Pro, Business) + modal PIX
 │   ├ css/style.css                # estilos globais (grid, variáveis, dark/glass)
 │   ├ js/script.js                 # JS vanilla compartilhado (sessão, verificação, toast, captura)
 │   ├ js/supabase.js               # inicialização do cliente Supabase + BACKEND_API_URL
@@ -66,16 +66,19 @@ PROJETO-NUVUY/
 - **Logout**: 
   1. Clique em "Sair" → modal de confirmação.
   2. Chama `signOut()` no Supabase (se configurado).
-  3. Remove `nuvuy_user_name`, `nuvuy_access_token`, `nuvuy_refresh_token` do `localStorage`.
+  3. Remove `nuvuy_user_name`, `nuvuy_access_token`, `nuvuy_refresh_token`, `nuvuy_user_plan` do `localStorage`.
   4. Redireciona para `login.html`.
   *Importante*: Se esses tokens não forem limpos, `checkSession()` redirecionará de volta ao dashboard, bloqueando o logout.
 - **Web scraper** (`scraper.js`): usa **Google Places API** (textsearch + details) para dados reais de empresas. Sem OSM ou fallback fictício. Retorna nome, telefone, website, avaliação e endereço reais.
 - **Fluxo de captura**:
   1. Usuário preenche modal → envia.
   2. Frontend mostra spinner + `setTimeout` toast após 4s ("Estamos efetuando sua busca...").
-  3. Backend faz scraping no Google Places → classifica com OpenRouter AI → salva no Supabase.
-  4. Modal fecha automaticamente ao sucesso/erro.
-  5. Leads aparecem nas colunas do Kanban.
+  3. Backend **verifica créditos** do usuário (1 lead = 2 créditos). Se insuficientes, retorna 403.
+  4. Backend faz scraping no Google Places → classifica com OpenRouter AI → salva no Supabase.
+  5. Backend **deduz créditos** do usuário e retorna saldo atualizado.
+  6. Modal fecha automaticamente ao sucesso/erro.
+  7. Leads aparecem nas colunas do Kanban.
+- **Sistema de créditos**: Cada lead capturado consome 2 créditos. O backend expõe `GET /api/user/usage` para o frontend exibir leads restantes. Se o período (`proxima_renovacao`) expirar, os créditos são automaticamente renovados na próxima requisição. Ao confirmar pagamento via webhook MisticPay, os créditos do novo plano são creditados.
 - **Ponte entre páginas**: `window.addLeadsToIntelligentPanel()` atualiza o painel de leads inteligentes e gráficos Chart.js após uma captura finalizar no dashboard.
 - **Justificativa/Abordagem**: Armazenada como string JSON em `score.justificativa_ia`; frontend faz parse e renderiza justificativa, roteiro de abordagem, comentários do Maps separadamente.
 - **URLs dinâmicas**: `getPageUrl()` em `script.js` retorna `dashboard.html` para protocolo `file:` (local) e `/dashboard` para HTTP(S) (Vercel). Links da sidebar são reescritos no `DOMContentLoaded` quando rodando no Vercel.

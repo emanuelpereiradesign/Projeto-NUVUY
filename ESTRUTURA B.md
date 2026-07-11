@@ -9,9 +9,11 @@
 * Nome
 * Email
 * Data_cadastro
-* Id_plano *(FK - ref: plano)*
-* Leads_utilizados
-* Saldo_tokens
+* Plano *(text: gratuito, básico, pro, business)*
+* Creditos_restantes *(integer — 1 lead = 2 créditos)*
+* Creditos_utilizados *(integer)*
+* Periodo_inicio *(timestamptz — início do ciclo)*
+* Proxima_renovacao *(timestamptz — renovação a cada 30 dias)*
 
 ### 💳 `plano`
 * **ID** *(PK)*
@@ -20,6 +22,7 @@
 * Limite_mensal
 * Max_leads_tarefa
 * Max_tarefas_mes
+* Creditos_mensais *(integer — 1 lead = 2 créditos)*
 * Created_at
 
 ### 📋 `Tarefas`
@@ -114,11 +117,11 @@
 
 ## 3. Observações de Implementação
 
-1. **Trigger `on_auth_user_created`:** Quando um novo usuário se cadastra via Supabase Auth (`auth.users`), um trigger dispara a função `handle_new_user()`, que insere automaticamente um registro em `public.usuario` vinculado ao plano **Gratuito**.
+1. **Trigger `on_auth_user_created`:** Quando um novo usuário se cadastra via Supabase Auth (`auth.users`), um trigger dispara a função `handle_new_user()`, que insere automaticamente um registro em `public.usuario` com plano **Gratuito** e **100 créditos** (50 leads).
 
 2. **Entidade `tarefa_fonte`:** Tabela intermediária que implementa o relacionamento N:N entre `Tarefas` e `Fonte`, substituindo o campo `Id_fonte` direto na tabela `Tarefas` (que não existe na implementação real).
 
-3. **Entidade `plano`:** Armazena os planos de assinatura (Gratuito R$0, Básico R$49, Pro R$97) com seus limites. Referenciada por `usuario.id_plano`.
+3. **Entidade `plano`:** Armazena os planos de assinatura (Gratuito R$0, Básico R$49, Pro R$97, Business R$149) com seus limites. Cada plano tem `creditos_mensais` (1 lead = 2 créditos).
 
 4. **Score - validação cruzada:** A tabela `score` possui uma constraint que garante que a `classificacao` corresponda exatamente à faixa da `pontuacao`: `quente` (71-100), `morno` (41-70), `frio` (0-40).
 
