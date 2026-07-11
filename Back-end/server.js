@@ -84,11 +84,18 @@ const authedClient = (token) =>
 
 // Verifica se o período do usuário expirou e renova os créditos
 const checkAndRenewCredits = async (userClient, user) => {
-  let { data: usuario, error: queryError } = await userClient
+  // Usa supabase global (anon key) para bypass de RLS na tabela usuario
+  if (!supabase) return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
+
+  let { data: usuario, error: queryError } = await supabase
     .from('usuario')
     .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
     .eq('id', user.id)
     .single();
+
+  if (queryError) {
+    console.warn(`[${now()}] Erro ao buscar usuário: ${queryError.message}`);
+  }
 
   // Se não achou o usuário na tabela (pré-migração ou trigger falhou), cria o registro
   if (!usuario) {
@@ -97,8 +104,7 @@ const checkAndRenewCredits = async (userClient, user) => {
     const agora = new Date().toISOString();
     const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Tenta inserir com o client autenticado do usuário
-    const { error: insertError } = await userClient
+    const { error: insertError } = await supabase
       .from('usuario')
       .insert({
         id: user.id,
@@ -113,8 +119,6 @@ const checkAndRenewCredits = async (userClient, user) => {
 
     if (insertError) {
       console.warn(`[${now()}] Erro ao criar registro de usuário: ${insertError.message}`);
-      // Retorna dados default para não bloquear a captura
-      return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
     }
 
     usuario = {
@@ -130,7 +134,7 @@ const checkAndRenewCredits = async (userClient, user) => {
   if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
     const agora = new Date();
-    await userClient
+    await supabase
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -147,7 +151,7 @@ const checkAndRenewCredits = async (userClient, user) => {
 
   if (!renovacao || agora >= renovacao) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
-    await userClient
+    await supabase
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -568,7 +572,7 @@ app.post('/api/tarefas', async (req, res) => {
     // 6. Deduz créditos do usuário
     const leadsCapturados = generatedLeads.length;
     const creditosGastos = leadsCapturados * 2;
-    await userClient
+    await supabase
       .from('usuario')
       .update({
         creditos_restantes: usuario.creditos_restantes - creditosGastos,
