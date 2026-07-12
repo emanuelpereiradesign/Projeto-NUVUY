@@ -46,6 +46,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
 let supabase = null;
+let supabaseAdmin = null;
 
 if (
   supabaseUrl && 
@@ -54,6 +55,17 @@ if (
   supabaseAnonKey !== 'SUA_SUPABASE_ANON_KEY_AQUI'
 ) {
   supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  // Tenta criar client admin com service_role key (opcional, para bypass de RLS)
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceRoleKey && serviceRoleKey !== 'SUA_SERVICE_ROLE_KEY_AQUI') {
+    supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    console.log('Supabase Admin configurado com service_role key.');
+  } else {
+    console.warn('Supabase Admin NÃO configurado (sem SUPABASE_SERVICE_ROLE_KEY). Operações em usuario podem falhar com RLS.');
+    supabaseAdmin = supabase; // fallback para anon key
+  }
+
   console.log('Supabase configurado com sucesso no Back-end.');
 } else {
   console.warn('Supabase NÃO configurado no Back-end. Por favor, crie um arquivo .env com suas chaves.');
@@ -84,10 +96,9 @@ const authedClient = (token) =>
 
 // Verifica se o período do usuário expirou e renova os créditos
 const checkAndRenewCredits = async (userClient, user) => {
-  // Usa supabase global (anon key) para bypass de RLS na tabela usuario
-  if (!supabase) return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
+  if (!supabaseAdmin) return { plano: 'gratuito', creditos_restantes: 100, creditos_utilizados: 0 };
 
-  let { data: usuario, error: queryError } = await supabase
+  let { data: usuario, error: queryError } = await supabaseAdmin
     .from('usuario')
     .select('plano, creditos_restantes, creditos_utilizados, periodo_inicio, proxima_renovacao')
     .eq('id', user.id)
@@ -97,14 +108,14 @@ const checkAndRenewCredits = async (userClient, user) => {
     console.warn(`[${now()}] Erro ao buscar usuário: ${queryError.message}`);
   }
 
-  // Se não achou o usuário na tabela (pré-migração ou trigger falhou), cria o registro
+  // Se não achou o usuário na tabela, cria o registro
   if (!usuario) {
     const nome = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
     const email = user.email || '';
     const agora = new Date().toISOString();
     const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseAdmin
       .from('usuario')
       .insert({
         id: user.id,
@@ -130,11 +141,11 @@ const checkAndRenewCredits = async (userClient, user) => {
     };
   }
 
-  // Se nunca foram inicializados (pré-migração), seta valores padrão
+  // Se nunca foram inicializados, seta valores padrão
   if (usuario.creditos_restantes === null || usuario.creditos_restantes === undefined) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
     const agora = new Date();
-    await supabase
+    await supabaseAdmin
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -151,7 +162,7 @@ const checkAndRenewCredits = async (userClient, user) => {
 
   if (!renovacao || agora >= renovacao) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
-    await supabase
+    await supabaseAdmin
       .from('usuario')
       .update({
         creditos_restantes: creditos,
@@ -172,7 +183,18 @@ const checkAndRenewCredits = async (userClient, user) => {
 app.get('/api/status', (req, res) => {
   res.json({
     status: 'online',
-    supabaseConfigured: !!supabase
+    supabaseConfigured: !!supabase,
+    supabaseAdminConfigured: !!supabaseAdmin && supabaseAdmin !== supabase
+  });
+});
+
+// Rota de debug: verifica config (só para admin)
+app.get('/api/debug/config', (req, res) => {
+  res.json({
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
+    hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY !== 'SUA_SERVICE_ROLE_KEY_AQUI',
+    adminSeparate: supabaseAdmin !== supabase
   });
 });
 
@@ -572,7 +594,7 @@ app.post('/api/tarefas', async (req, res) => {
     // 6. Deduz créditos do usuário
     const leadsCapturados = generatedLeads.length;
     const creditosGastos = leadsCapturados * 2;
-    await supabase
+    await supabaseAdmin
       .from('usuario')
       .update({
         creditos_restantes: usuario.creditos_restantes - creditosGastos,
@@ -903,7 +925,7 @@ app.post('/api/webhook/misticpay', async (req, res) => {
           const agora = new Date().toISOString();
           const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-          const { error } = await supabase
+          const { error } = await supabaseAdmin
             .from('usuario')
             .update({
               plano: planName,
