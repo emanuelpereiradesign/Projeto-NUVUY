@@ -4,14 +4,26 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Busca perfil do Instagram usando Google Custom Search API
- * Requer GOOGLE_CX (ID do mecanismo de busca) e GOOGLE_API_KEY no .env
+ * Tem fallback para tentativa direta por padrões de URL
  */
 const buscarInstagramPorNome = async (nomeEmpresa, cidade) => {
+  let username = null;
+
+  // Tenta Google Custom Search API primeiro
+  username = await viaGoogleCustomSearch(nomeEmpresa, cidade);
+  if (username) return username;
+
+  // Fallback: tenta padrões de URL comuns
+  username = await viaTentativaDireta(nomeEmpresa);
+  return username;
+};
+
+const viaGoogleCustomSearch = async (nomeEmpresa, cidade) => {
   const apiKey = process.env.GOOGLE_API_KEY;
   const cx = process.env.GOOGLE_CX;
 
   if (!apiKey || !cx || apiKey === 'SUA_GOOGLE_API_KEY_AQUI' || cx === 'SEU_GOOGLE_CX_AQUI') {
-    console.log(`[${now()}] [Instagram] Google Custom Search não configurado. Pule instagram.`);
+    console.log(`[${now()}] [Instagram] Google Custom Search não configurado.`);
     return null;
   }
 
@@ -22,12 +34,16 @@ const buscarInstagramPorNome = async (nomeEmpresa, cidade) => {
     const res = await fetch(url);
     const data = await res.json();
 
+    if (data.error) {
+      console.warn(`[${now()}] [Instagram] Google Custom Search API error: ${data.error.message}`);
+      return null;
+    }
+
     if (!data.items || data.items.length === 0) {
       console.log(`[${now()}] [Instagram] Nenhum resultado para "${nomeEmpresa}"`);
       return null;
     }
 
-    // Filtra apenas links do instagram.com (exclui stories, reels, etc.)
     const instagramLinks = data.items
       .map(item => item.link)
       .filter(link => {
@@ -38,21 +54,63 @@ const buscarInstagramPorNome = async (nomeEmpresa, cidade) => {
       })
       .filter(link => {
         const path = link.replace(/https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '');
-        // Ignora links que não são perfis (explore, reels, stories, etc.)
         return path && !path.includes('/') && !path.startsWith('?');
       });
 
     if (instagramLinks.length === 0) return null;
 
     const profileUrl = instagramLinks[0];
-    const username = profileUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '');
-    console.log(`[${now()}] [Instagram] Perfil encontrado para "${nomeEmpresa}": @${username}`);
-
-    return username;
+    const u = profileUrl.replace(/https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/$/, '');
+    console.log(`[${now()}] [Instagram] Perfil encontrado via Google Search: @${u}`);
+    return u;
   } catch (err) {
-    console.warn(`[${now()}] [Instagram] Erro na busca de "${nomeEmpresa}": ${err.message}`);
+    console.warn(`[${now()}] [Instagram] Erro na busca Google de "${nomeEmpresa}": ${err.message}`);
     return null;
   }
+};
+
+/**
+ * Tenta encontrar perfil testando nomes de usuário comuns baseados no nome da empresa
+ */
+const viaTentativaDireta = async (nomeEmpresa) => {
+  // Gera possíveis usernames a partir do nome da empresa
+  const base = nomeEmpresa
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(.)\1+/g, '$1')
+    .slice(0, 30);
+
+  const variacoes = [
+    base,
+    base.replace(/[aeiou]/g, ''),
+    base.replace(/[aeiou]/g, '') + 'oficial',
+    base + 'oficial',
+    base.replace(/[aeio]/g, '') + base.slice(-2),
+    '_' + base + '_'
+  ];
+
+  const unicas = [...new Set(variacoes)];
+
+  for (const user of unicas) {
+    if (!user || user.length < 2) continue;
+    try {
+      const res = await fetch(`https://www.instagram.com/${user}/`, {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      if (res.ok) {
+        console.log(`[${now()}] [Instagram] Perfil encontrado via tentativa direta: @${user}`);
+        return user;
+      }
+    } catch { /* ignora */ }
+    await sleep(300);
+  }
+
+  console.log(`[${now()}] [Instagram] Nenhum perfil encontrado para "${nomeEmpresa}"`);
+  return null;
 };
 
 /**

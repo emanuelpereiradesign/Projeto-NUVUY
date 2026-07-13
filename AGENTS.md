@@ -82,6 +82,8 @@ PROJETO-NUVUY/
   6. Modal fecha automaticamente ao sucesso/erro.
   7. Leads aparecem nas colunas do Kanban.
 - **Sistema de créditos**: Cada lead capturado consome 2 créditos. O backend expõe `GET /api/user/usage` para o frontend exibir leads restantes. Se o período (`proxima_renovacao`) expirar, os créditos são automaticamente renovados na próxima requisição. Ao confirmar pagamento via webhook MisticPay, os créditos do novo plano são creditados.
+- **Supabase Admin**: O backend usa `supabaseAdmin` (client com `SUPABASE_SERVICE_ROLE_KEY`) para operações na tabela `usuario`, bypassando RLS. Se a env var não existir, cai para anon key. 
+- **Debug**: `GET /api/debug/config` retorna o estado das chaves (sem expor valores).
 - **Ponte entre páginas**: `window.addLeadsToIntelligentPanel()` atualiza o painel de leads inteligentes e gráficos Chart.js após uma captura finalizar no dashboard.
 - **Justificativa/Abordagem**: Armazenada como string JSON em `score.justificativa_ia`; frontend faz parse e renderiza justificativa, roteiro de abordagem, comentários do Maps separadamente.
 - **URLs dinâmicas**: `getPageUrl()` em `script.js` retorna `dashboard.html` para protocolo `file:` (local) e `/dashboard` para HTTP(S) (Vercel). Links da sidebar são reescritos no `DOMContentLoaded` quando rodando no Vercel.
@@ -90,7 +92,7 @@ PROJETO-NUVUY/
 - Veja `ESTRUTURA B.md` para schema ER completo.
 - Tabelas principais: `usuario`, `plano`, `tarefas`, `fonte`, `tarefa_fonte`, `lead`, `metrica_google_maps`, `metrica_instagram`, `score`.
 - **Trigger**: `on_auth_user_created` cria linha em `public.usuario` com plano gratuito no cadastro via Supabase Auth.
-- **RLS**: Todas as tabelas têm políticas de segurança restringindo linhas a `auth.uid()`.
+- **RLS**: Todas as tabelas têm políticas de segurança restringindo linhas a `auth.uid()`. A tabela `usuario` é acessada via `supabaseAdmin` (service_role key) para bypass de RLS.
 
 ## Pontuação e Temperatura de Leads (imposto pelo banco)
 - Pontuação 0‑100 reflete probabilidade de fechamento.
@@ -115,3 +117,5 @@ PROJETO-NUVUY/
 - Ao adicionar uma nova rota no backend, atualize `server.js` e lembre-se de protegê-la com autenticação Supabase (verificar `req.user`).
 - O Render plano gratuito hiberna após 15 min ocioso → use UptimeRobot para mantê-lo ativo.
 - `BACKEND_API_URL` em `supabase.js` aponta para localhost:3000 localmente e para URL do Render no Vercel.
+- **Tabela `usuario`**: usa `supabaseAdmin` (service_role key) para bypass de RLS nas operações de crédito. Configure `SUPABASE_SERVICE_ROLE_KEY` no Render como environment variable.
+- **Colunas essenciais da `usuario`**: `id` (uuid FK auth.users), `plano` (text), `creditos_restantes`, `creditos_utilizados`, `periodo_inicio`, `proxima_renovacao`.

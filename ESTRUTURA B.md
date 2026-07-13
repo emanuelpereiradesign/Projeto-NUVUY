@@ -125,6 +125,6 @@
 
 4. **Score - validação cruzada:** A tabela `score` possui uma constraint que garante que a `classificacao` corresponda exatamente à faixa da `pontuacao`: `quente` (71-100), `morno` (41-70), `frio` (0-40).
 
-5. **RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança garantindo que cada usuário veja e manipule apenas seus próprios dados. As políticas utilizam `auth.uid()` e joins para verificar a propriedade através da cadeia `usuario -> tarefas -> lead`.
+5. **RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança garantindo que cada usuário veja e manipule apenas seus próprios dados. As políticas utilizam `auth.uid()` e joins para verificar a propriedade através da cadeia `usuario -> tarefas -> lead`. A tabela `usuario` é acessada pelo backend via `supabaseAdmin` (service_role key) para operações de crédito, bypassando RLS.
 
 6. **Erro de digitação:** O relacionamento entre `Tarefas` e `Lead` estava grafado como "Captuira" no diagrama original. Na implementação utiliza-se "Captura".

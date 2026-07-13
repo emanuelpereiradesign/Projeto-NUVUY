@@ -719,6 +719,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Toggle popup do anel de leads
+  const ringWrapper = document.getElementById('leads-ring-wrapper');
+  if (ringWrapper) {
+    ringWrapper.addEventListener('click', (e) => {
+      e.stopPropagation();
+      ringWrapper.classList.toggle('show-popup');
+    });
+    document.addEventListener('click', () => {
+      ringWrapper.classList.remove('show-popup');
+    });
+  }
+
   // Form submission / Real or Simulated Lead Capture
   if (form) {
     form.addEventListener('submit', async (e) => {
@@ -966,22 +978,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Atualiza o anel circular de leads na navbar
+  function updateLeadsRing(disponiveis, total, planLabel) {
+    const numberEl = document.getElementById('leads-ring-number');
+    const circleEl = document.querySelector('.leads-ring-fill');
+    if (!numberEl || !circleEl) return;
+
+    const d = Math.max(0, disponiveis);
+    const t = Math.max(1, total);
+    const ratio = d / t;
+
+    // Cor: verde ≥ 60%, amarelo 25-60%, vermelho < 25%
+    let color;
+    if (ratio >= 0.6) color = '#00E676';
+    else if (ratio >= 0.25) color = '#FFB300';
+    else color = '#FF5252';
+
+    numberEl.textContent = d;
+    circleEl.style.stroke = color;
+
+    // Circunferência = 2 * π * 15.5 ≈ 97.4
+    const circumference = 97.4;
+    const offset = circumference * (1 - ratio);
+    circleEl.style.strokeDashoffset = offset;
+  }
+
   // Busca dados de créditos/leads restantes do backend
   async function fetchUsageInfo() {
-    const disponiveisEl = document.getElementById('stat-leads-disponiveis');
-    const subEl = document.getElementById('stat-leads-sub');
-    if (!disponiveisEl) return;
-
     const backendActive = await isBackendActive();
     const token = localStorage.getItem('nuvuy_access_token');
+
+    let disponiveis = '?';
+    let total = 100;
+    let planLabel = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
 
     if (backendActive && token) {
       try {
         const res = await callBackend('/api/user/usage', 'GET', null, token);
         if (res && res.success) {
-          disponiveisEl.textContent = res.leads_restantes;
-          const planLabel = res.plan.charAt(0).toUpperCase() + res.plan.slice(1);
-          subEl.textContent = `de ${res.leads_total} leads/mês • ${planLabel}`;
+          disponiveis = res.leads_restantes;
+          total = res.leads_total;
+          planLabel = res.plan.charAt(0).toUpperCase() + res.plan.slice(1);
+
+          document.getElementById('popup-disponiveis') && (document.getElementById('popup-disponiveis').textContent = disponiveis);
+          document.getElementById('popup-total') && (document.getElementById('popup-total').textContent = total);
+          document.getElementById('popup-plano') && (document.getElementById('popup-plano').textContent = planLabel);
+
+          updateLeadsRing(disponiveis, total, planLabel);
           return;
         }
       } catch (err) {
@@ -989,23 +1032,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Fallback: mostra o plano do localStorage
-    const plan = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
-    disponiveisEl.textContent = '?';
-    subEl.textContent = `${plan}`;
+    document.getElementById('popup-disponiveis') && (document.getElementById('popup-disponiveis').textContent = disponiveis);
+    document.getElementById('popup-total') && (document.getElementById('popup-total').textContent = total);
+    document.getElementById('popup-plano') && (document.getElementById('popup-plano').textContent = planLabel);
+    updateLeadsRing(0, 1, planLabel);
   };
 
-  // Atualiza o card de leads disponíveis após uma captura
+  // Atualiza o anel após uma captura
   const updateUsageAfterCapture = (creditosRestantes, leadsRestantes) => {
-    const disponiveisEl = document.getElementById('stat-leads-disponiveis');
-    if (disponiveisEl && leadsRestantes !== undefined) {
-      disponiveisEl.textContent = leadsRestantes;
-    }
-    const subEl = document.getElementById('stat-leads-sub');
-    if (subEl && creditosRestantes !== undefined) {
-      const currentText = subEl.textContent;
-      subEl.textContent = currentText.replace(/^\d+/, leadsRestantes);
-    }
+    fetchUsageInfo();
   };
 
   // Toast System
