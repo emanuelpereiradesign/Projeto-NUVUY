@@ -255,7 +255,7 @@
           </div>
           <div class="modal-form-group">
             <label for="input-quantidade">QUANTIDADE DE LEAS</label>
-            <input type="number" id="input-quantidade" class="modal-input" placeholder="Exemplo: 10" min="1" max="10" required autocomplete="off">
+            <input type="number" id="input-quantidade" class="modal-input" placeholder="Exemplo: 10" min="1" max="10" required autocomplete="off" oninput="if(this.value.length > 2) this.value = this.value.slice(0,2); if(this.value > 10) this.value = 10; if(this.value < 0) this.value = '';">
           </div>
         </div>
 
