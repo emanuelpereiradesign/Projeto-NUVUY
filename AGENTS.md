@@ -85,6 +85,8 @@ PROJETO-NUVUY/
 - **Supabase Admin**: O backend usa `supabaseAdmin` (client com `SUPABASE_SERVICE_ROLE_KEY`) para operações na tabela `usuario`, bypassando RLS. Se a env var não existir, cai para anon key. 
 - **Debug**: `GET /api/debug/config` retorna o estado das chaves (sem expor valores).
 - **Ponte entre páginas**: `window.addLeadsToIntelligentPanel()` atualiza o painel de leads inteligentes e gráficos Chart.js após uma captura finalizar no dashboard.
+- **Sistema de notificações**: Sino na top-bar com badge de não lidas. Popup com lista de notificações com ícones por tipo (success/warning/error/info). Persistência via `localStorage` (`nuvuy_notifications`). Funções: `addNotification(title, desc, iconType)` adiciona e renderiza automaticamente; `renderNotifications()` e `updateNotifBadge()` gerenciam a UI. Capturas bem-sucedidas e erro de créditos insuficientes disparam notificações automaticamente. "Marcar todas como lidas" no rodapé do popup.
+- **Normalização WhatsApp**: `normalizeWaNumber(raw)` no `script.js` garante que números brasileiros sem `+55` recebam o código de país antes de montar o link `wa.me/`. Números com 10 ou 11 dígitos sem `55` recebem o prefixo automaticamente. Aplicado nos dois pontos que geram link de WhatsApp nos detalhes do lead.
 - **Justificativa/Abordagem**: Armazenada como string JSON em `score.justificativa_ia`; frontend faz parse e renderiza justificativa, roteiro de abordagem, comentários do Maps separadamente.
 - **URLs dinâmicas**: `getPageUrl()` em `script.js` retorna `dashboard.html` para protocolo `file:` (local) e `/dashboard` para HTTP(S) (Vercel). Links da sidebar são reescritos no `DOMContentLoaded` quando rodando no Vercel.
 

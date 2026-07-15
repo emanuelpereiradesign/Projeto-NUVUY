@@ -60,12 +60,18 @@
         </a>
       </nav>
     </aside>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
     <main class="main-content">
       <div class="top-bar">
-        <div class="search-bar" style="visibility: hidden;">
-          <!-- Placeholder to preserve search bar layout -->
-        </div>
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="Abrir menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="search-bar" style="display: none;"></div>
         <div class="top-actions">
           <div class="top-user-section">
             <div class="user-avatar">
@@ -78,7 +84,21 @@
               <span class="user-name" style="font-size: 13px; font-family: 'Poppins', sans-serif; font-weight: 500; color: var(--text-primary);">Emanuel.P</span>
               </div>
           </div>
-          
+          <div class="notification-wrapper" id="notification-wrapper" title="Notificações">
+            <button class="btn-notification" id="btn-notification">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+            </button>
+            <span class="notification-badge" id="notification-badge">0</span>
+            <div class="notification-popup" id="notification-popup">
+              <div class="notification-popup-header">Notificações</div>
+              <div class="notification-popup-list" id="notification-list">
+                <div class="notification-empty">Nenhuma notificação</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -51,6 +51,7 @@ A infraestrutura do projeto roda majoritariamente em nuvem (front-end no Vercel,
 9. Back-end retorna os leads formatados → Front-end insere os cards nas colunas do Kanban.
 9. Se a busca demorar mais de 4 segundos, o front-end exibe toast "Estamos efetuando sua busca, aguarde apenas um momento...".
 10. Modal de captura fecha automaticamente ao finalizar (sucesso ou erro).
+11. Captura bem-sucedida ou erro de créditos insuficientes disparam notificação no sino da top-bar, persistida no `localStorage` (`nuvuy_notifications`).
 
 ## 6. Modelo Canvas
 
@@ -111,6 +112,8 @@ Melhoria de desempenho de um produto ou serviço. A ferramenta possui motor inte
 | RF18 | Modal de captura fecha automaticamente ao finalizar a busca (sucesso ou erro) | Alta |
 | RF19 | Layout responsivo (desktop, tablet, mobile) | Alta |
 | RF20 | Tema visual futurista/dark com glassmorphism | Alta |
+| RF21 | Sistema de notificações no sino da top-bar com badge, popup e persistência localStorage | Média |
+| RF22 | Normalização automática de números WhatsApp brasileiros (prefixo +55) para links wa.me | Média |
 
 ### 7.2 Requisitos Não Funcionais
 
