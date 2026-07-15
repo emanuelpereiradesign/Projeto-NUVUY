@@ -80,6 +80,30 @@ const PLAN_CREDITS = {
   business: 2000
 };
 
+// Map: nome do plano → regras de negócio
+const PLAN_RULES = {
+  gratuito: { max_leads_por_tarefa: 10, max_buscas_mes: 5, instagram: false },
+  básico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
+  basico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
+  pro:     { max_leads_por_tarefa: 20, max_buscas_mes: 60, instagram: true },
+  business:{ max_leads_por_tarefa: 30, max_buscas_mes: 100, instagram: true }
+};
+
+const getPlanRules = (plano) => PLAN_RULES[plano?.toLowerCase()] || PLAN_RULES.gratuito;
+
+const countSearchesThisMonth = async (userId) => {
+  if (!supabaseAdmin) return 0;
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { count, error } = await supabaseAdmin
+    .from('tarefas')
+    .select('id', { count: 'exact', head: true })
+    .eq('id_usuario', userId)
+    .gte('data', startOfMonth);
+  if (error) return 0;
+  return count || 0;
+};
+
 // Auxiliar para extrair o JWT do cabeçalho de Autorização (Bearer Token)
 const getAuthToken = (req) => {
   if (req.headers.authorization && req.headers.authorization.split(' ')[0] === 'Bearer') {
@@ -230,6 +254,35 @@ app.get('/api/user/usage', async (req, res) => {
       leads_utilizados: leadsUtilizados,
       periodo_inicio: usuario.periodo_inicio,
       proxima_renovacao: usuario.proxima_renovacao
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Rota: obter regras do plano do usuário logado
+app.get('/api/user/plan-rules', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase não inicializado.' });
+
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+
+  try {
+    const userClient = authedClient(token);
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const usuario = await checkAndRenewCredits(userClient, user);
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+    const rules = getPlanRules(usuario.plano);
+    const searchesThisMonth = await countSearchesThisMonth(user.id);
+
+    res.json({
+      success: true,
+      plan: usuario.plano,
+      rules,
+      searches_this_month: searchesThisMonth
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -424,7 +477,34 @@ app.post('/api/tarefas', async (req, res) => {
     if (!usuario) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
-    const leadsSolicitados = Math.min(parseInt(quantidade) || 1, 10);
+
+    // 1c. Verifica regras do plano
+    const planRules = getPlanRules(usuario.plano);
+
+    // Limite de leads por tarefa
+    if (parseInt(quantidade) > planRules.max_leads_por_tarefa) {
+      return res.status(403).json({
+        error: 'Limite do plano excedido',
+        message: `Seu plano ${usuario.plano} permite no máximo ${planRules.max_leads_por_tarefa} leads por tarefa.`
+      });
+    }
+
+    // Conta buscas do mês atual
+    const searchesThisMonth = await countSearchesThisMonth(user.id);
+    if (searchesThisMonth >= planRules.max_buscas_mes) {
+      return res.status(403).json({
+        error: 'Limite de buscas mensais excedido',
+        message: `Seu plano ${usuario.plano} permite apenas ${planRules.max_buscas_mes} buscas por mês. Faça um upgrade.`
+      });
+    }
+
+    // Filtra Instagram se o plano não permitir
+    if (!planRules.instagram && fontes.includes('instagram')) {
+      console.log(`[${now()}] Plano ${usuario.plano} não inclui Instagram. Removendo da busca.`);
+      // Avisa mas não bloqueia — apenas remove a fonte
+    }
+
+    const leadsSolicitados = Math.min(parseInt(quantidade) || 1, planRules.max_leads_por_tarefa);
     const creditosNecessarios = leadsSolicitados * 2;
     if (usuario.creditos_restantes < creditosNecessarios) {
       return res.status(403).json({
@@ -473,16 +553,23 @@ app.post('/api/tarefas', async (req, res) => {
     if (errorTarefa) throw errorTarefa;
 
     // 4. Cria a associação da tarefa com as fontes selecionadas
-    if (fontes.includes('google-maps') && mapsId) {
+    const effectiveFontes = [...fontes];
+    if (!planRules.instagram && effectiveFontes.includes('instagram')) {
+      console.log(`[${now()}] Plano ${usuario.plano} não inclui Instagram. Ignorando fonte.`);
+      const idx = effectiveFontes.indexOf('instagram');
+      if (idx > -1) effectiveFontes.splice(idx, 1);
+    }
+
+    if (effectiveFontes.includes('google-maps') && mapsId) {
       await userClient.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: mapsId });
     }
-    if (fontes.includes('instagram') && instaId) {
+    if (effectiveFontes.includes('instagram') && instaId) {
       await userClient.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: instaId });
     }
 
     // 5. Executa a captação de leads via Web Scraper
-    console.log(`[${now()}] [2/5] Scraper: captando leads...`);
-    const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, fontes);
+    console.log(`[${now()}] [2/5] Scraper: captando leads com fontes: [${effectiveFontes}]...`);
+    const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, effectiveFontes);
     console.log(`[${now()}] [2/5] Scraper retornou ${leadsToProcess.length} leads`);
 
     // Qualifica os leads utilizando a IA (OpenRouter) sequencialmente para evitar rate limit

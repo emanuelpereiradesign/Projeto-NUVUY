@@ -924,11 +924,10 @@ document.addEventListener('DOMContentLoaded', () => {
           nichoInput?.focus();
         }, 100);
 
-        // Check plan and lock Instagram button if free
-        const userPlan = localStorage.getItem('nuvuy_user_plan') || 'Gratuito';
+        // Check plan and lock Instagram button if not included
         const instagramBtn = document.querySelector('.btn-source[data-source="instagram"]');
         if (instagramBtn) {
-          if (userPlan === 'Gratuito') {
+          if (!planRules.instagram) {
             instagramBtn.classList.add('btn-source-locked');
             instagramBtn.classList.remove('active');
           } else {
@@ -1054,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const nicho = document.getElementById('input-nicho').value.trim();
       const regiao = document.getElementById('input-regiao').value.trim();
-      const quantidade = Math.max(1, Math.min(parseInt(document.getElementById('input-quantidade').value) || 1, 10));
+      const quantidade = Math.max(1, Math.min(parseInt(document.getElementById('input-quantidade').value) || 1, planRules.max_leads_por_tarefa));
       
       const activeSources = Array.from(document.querySelectorAll('.btn-source.active'))
         .map(btn => btn.textContent.trim());
@@ -1352,6 +1351,44 @@ document.addEventListener('DOMContentLoaded', () => {
   const updateUsageAfterCapture = (creditosRestantes, leadsRestantes) => {
     fetchUsageInfo();
   };
+
+  // Armazena regras do plano para uso no modal de captura
+  let planRules = { max_leads_por_tarefa: 10, max_buscas_mes: 5, instagram: false };
+
+  async function fetchPlanRules() {
+    const backendActive = await isBackendActive();
+    const token = localStorage.getItem('nuvuy_access_token');
+    if (!backendActive || !token) return;
+
+    try {
+      const res = await callBackend('/api/user/plan-rules', 'GET', null, token);
+      if (res && res.success) {
+        planRules = res.rules;
+
+        // Atualiza input quantidade
+        const qtdInput = document.getElementById('input-quantidade');
+        if (qtdInput) {
+          qtdInput.max = planRules.max_leads_por_tarefa;
+          qtdInput.placeholder = `Máx: ${planRules.max_leads_por_tarefa}`;
+        }
+
+        // Atualiza botão Instagram
+        const instaBtn = document.querySelector('.btn-source[data-source="instagram"]');
+        if (instaBtn) {
+          if (planRules.instagram) {
+            instaBtn.disabled = false;
+            instaBtn.title = '';
+          } else {
+            instaBtn.disabled = true;
+            instaBtn.title = 'Disponível nos planos Básico+';
+            instaBtn.classList.remove('active');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao buscar regras do plano:', err);
+    }
+  }
 
   // Notification System
   function getNotifications() {
@@ -2864,7 +2901,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatePlansUI(planName);
                     showToast(`Pagamento confirmado! Plano ${planName} ativado.`, 'success');
                     closePixModal();
-                    fetchUsageInfo();
+  fetchUsageInfo();
+  fetchPlanRules();
                   }
                 } catch (e) {
                   console.log('Polling error:', e.message);
