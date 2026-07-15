@@ -424,7 +424,7 @@ app.post('/api/tarefas', async (req, res) => {
     if (!usuario) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
-    const leadsSolicitados = parseInt(quantidade) || 1;
+    const leadsSolicitados = Math.min(parseInt(quantidade) || 1, 10);
     const creditosNecessarios = leadsSolicitados * 2;
     if (usuario.creditos_restantes < creditosNecessarios) {
       return res.status(403).json({

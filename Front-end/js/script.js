@@ -1054,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const nicho = document.getElementById('input-nicho').value.trim();
       const regiao = document.getElementById('input-regiao').value.trim();
-      const quantidade = parseInt(document.getElementById('input-quantidade').value) || 10;
+      const quantidade = Math.min(parseInt(document.getElementById('input-quantidade').value) || 10, 10);
       
       const activeSources = Array.from(document.querySelectorAll('.btn-source.active'))
         .map(btn => btn.textContent.trim());
