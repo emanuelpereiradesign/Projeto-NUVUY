@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
@@ -17,9 +19,36 @@ const now = () => new Date().toLocaleTimeString('pt-BR');
 // Caminho para a pasta front-end (um nível acima do Back-end)
 const frontEndPath = path.join(__dirname, '..', 'Front-end');
 
-// Configuração de CORS (Habilita chamadas a partir das páginas HTML locais)
-app.use(cors());
-app.use(express.json());
+// Segurança: Helmet (headers HTTP seguros)
+app.use(helmet());
+
+// Configuração de CORS (apenas origens permitidas)
+const allowedOrigins = [
+  'http://localhost:5500',
+  'http://localhost:3000',
+  'http://127.0.0.1:5500',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL,
+  process.env.BACKEND_URL
+].filter(Boolean);
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) cb(null, true);
+    else cb(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Rate limiting: protege auth contra brute force
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Muitas tentativas. Tente novamente em 15 minutos.' }
+});
+app.use('/api/auth', authLimiter);
+
+app.use(express.json({ limit: '1mb' }));
 
 // Log de todas as requisições
 app.use((req, res, next) => {
@@ -820,6 +849,23 @@ app.post('/api/auth/logout', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(400).json(safeError(error));
+  }
+});
+
+// Rota: Verificar se o token de sessão ainda é válido
+app.get('/api/auth/check', async (req, res) => {
+  if (!supabase) return res.status(200).json({ valid: false });
+
+  const token = getAuthToken(req);
+  if (!token) return res.status(200).json({ valid: false });
+
+  try {
+    const userClient = authedClient(token);
+    const { data: { user }, error } = await userClient.auth.getUser();
+    if (error || !user) return res.status(200).json({ valid: false });
+    res.json({ valid: true, user: { id: user.id, email: user.email } });
+  } catch {
+    res.status(200).json({ valid: false });
   }
 });
 

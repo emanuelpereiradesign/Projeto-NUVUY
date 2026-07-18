@@ -254,15 +254,36 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.removeItem('nuvuy_user_name');
     }
     
-    // 1. Tenta verificar se o Back-end está ativo e responde online
+    const token = localStorage.getItem('nuvuy_access_token');
+
+    // 1. Tenta verificar se o Back-end está ativo
     const backendActive = await isBackendActive();
 
     if (backendActive) {
-      const token = localStorage.getItem('nuvuy_access_token');
       if (!token && !isLoginPage) {
         window.location.href = getPageUrl('login');
-      } else if (token && isLoginPage) {
+        return;
+      }
+      if (token && isLoginPage) {
         window.location.href = getPageUrl('dashboard');
+        return;
+      }
+      // Valida o token com o backend (expirou? redireciona na hora)
+      if (token) {
+        try {
+          const res = await callBackend('/api/auth/check', 'GET', null, token);
+          if (!res || !res.valid) {
+            localStorage.removeItem('nuvuy_access_token');
+            localStorage.removeItem('nuvuy_refresh_token');
+            localStorage.removeItem('nuvuy_user_name');
+            if (!isLoginPage) window.location.href = getPageUrl('login');
+          }
+        } catch {
+          localStorage.removeItem('nuvuy_access_token');
+          localStorage.removeItem('nuvuy_refresh_token');
+          localStorage.removeItem('nuvuy_user_name');
+          if (!isLoginPage) window.location.href = getPageUrl('login');
+        }
       }
       return;
     }
