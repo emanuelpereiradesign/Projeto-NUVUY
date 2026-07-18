@@ -827,7 +827,6 @@ app.post('/api/auth/logout', async (req, res) => {
 const MISTICPAY_API_URL = 'https://api.misticpay.com';
 const misticpayCi = process.env.MISTICPAY_CI;
 const misticpayCs = process.env.MISTICPAY_CS;
-const misticpayWebhookSecret = process.env.MISTICPAY_WEBHOOK_SECRET;
 
 /** Mapa em memória: chave = misticpayTransactionId, valor = { userId, planName, status } */
 const paymentMap = new Map();
@@ -890,49 +889,50 @@ app.post('/api/create-preference', async (req, res) => {
 // Rota: Webhook para confirmar pagamento
 app.post('/api/webhook/misticpay', async (req, res) => {
   try {
-    // Verifica autenticação do webhook
-    const receivedSecret = req.headers['x-webhook-secret'];
-    if (misticpayWebhookSecret && misticpayWebhookSecret !== 'SEU_WEBHOOK_SECRET_AQUI') {
-      if (!receivedSecret || receivedSecret !== misticpayWebhookSecret) {
-        console.warn(`[${now()}] Webhook rejeitado: x-webhook-secret inválido`);
-        return res.status(401).json({ error: 'Assinatura inválida' });
-      }
-    } else {
-      console.warn(`[${now()}] Aviso: MISTICPAY_WEBHOOK_SECRET não configurado. Webhook sem autenticação!`);
+    const payload = req.body;
+    const misticpayId = String(payload.transactionId || '');
+
+    if (!misticpayId) {
+      return res.status(400).json({ error: 'transactionId é obrigatório' });
     }
 
-    const payload = req.body;
+    // Verifica se a transação existe no mapa de pagamentos pendentes
+    const payment = paymentMap.get(misticpayId);
+    if (!payment) {
+      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} não encontrado no mapa de pagamentos`);
+      return res.status(401).json({ error: 'Transação não reconhecida' });
+    }
+
+    if (payment.status !== 'PENDENTE') {
+      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} já processado (${payment.status})`);
+      return res.status(409).json({ error: 'Transação já processada' });
+    }
     console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
 
     if (payload.transactionType === 'DEPOSITO' && payload.status === 'COMPLETO') {
-      const misticpayId = String(payload.transactionId);
-      const payment = paymentMap.get(misticpayId);
+      payment.status = 'COMPLETO';
+      console.log(`[${now()}] Pagamento confirmado: userId=${payment.userId}, plan=${payment.planName}`);
 
-      if (payment) {
-        payment.status = 'COMPLETO';
-        console.log(`[${now()}] Pagamento confirmado: userId=${payment.userId}, plan=${payment.planName}`);
+      if (supabase) {
+        const planName = payment.planName.toLowerCase();
+        const creditos = PLAN_CREDITS[planName] || 100;
+        const agora = new Date().toISOString();
+        const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        if (supabase) {
-          const planName = payment.planName.toLowerCase();
-          const creditos = PLAN_CREDITS[planName] || 100;
-          const agora = new Date().toISOString();
-          const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-          const { error } = await supabaseAdmin
-            .from('usuario')
-            .update({
-              plano: planName,
-              creditos_restantes: creditos,
-              creditos_utilizados: 0,
-              periodo_inicio: agora,
-              proxima_renovacao: renovacao
-            })
-            .eq('id', payment.userId);
-          if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
-        }
-      } else {
-        console.log(`[${now()}] Webhook recebido para transação não mapeada: ${misticpayId}`);
+        const { error } = await supabaseAdmin
+          .from('usuario')
+          .update({
+            plano: planName,
+            creditos_restantes: creditos,
+            creditos_utilizados: 0,
+            periodo_inicio: agora,
+            proxima_renovacao: renovacao
+          })
+          .eq('id', payment.userId);
+        if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
       }
+    } else {
+      console.log(`[${now()}] Webhook ignorado: type=${payload.transactionType}, status=${payload.status}`);
     }
 
     res.status(200).json({ received: true });
