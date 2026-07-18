@@ -73,14 +73,13 @@ PROJETO-NUVUY/
   *Importante*: Se esses tokens não forem limpos, `checkSession()` redirecionará de volta ao dashboard, bloqueando o logout.
 - **Web scraper** (`scraper.js`): usa **Google Places API** (textsearch + details) para dados reais de empresas. Sem OSM ou fallback fictício. Retorna nome, telefone, website, avaliação e endereço reais.
 - **Instagram** (`scraper_instagram.js`): usa **Google Custom Search API** para encontrar perfis do Instagram pelo nome da empresa, depois tenta extrair seguidores e postagens da página pública. Requer `GOOGLE_API_KEY` e `GOOGLE_CX` no `.env`.
-- **Fluxo de captura**:
+- **Fluxo de captura (assíncrono via fila)**:
   1. Usuário preenche modal → envia.
-  2. Frontend mostra spinner + `setTimeout` toast após 4s ("Estamos efetuando sua busca...").
-  3. Backend **verifica créditos** do usuário (1 lead = 2 créditos). Se insuficientes, retorna 403.
-  4. Backend faz scraping no Google Places → classifica com OpenRouter AI → salva no Supabase.
-  5. Backend **deduz créditos** do usuário e retorna saldo atualizado.
-  6. Modal fecha automaticamente ao sucesso/erro.
-  7. Leads aparecem nas colunas do Kanban.
+  2. Backend **verifica créditos** e regras do plano. Se ok, insere job na tabela `job_queue` com `status: 'pending'` e retorna `{ job_id }` imediatamente.
+  3. Frontend fecha o modal e faz **polling** a cada 2.5s em `GET /api/jobs/:id` até o job ficar `completed` ou `failed`.
+  4. Worker interno (`processNextJob` executado a cada 3s) pega o job mais antigo, marca como `processing`, executa scraping + AI + persistência, deduz créditos e marca como `completed`.
+  5. Ao receber `completed`, frontend renderiza os leads e dispara notificação.
+- **Tabela `job_queue`**: UUID, user_id, nicho, regiao, quantidade, fontes JSONB, status (pending/processing/completed/failed), result JSONB, error_message, timestamps. RLS ativo (usuários veem só os próprios jobs). Worker usa `supabaseAdmin` para bypass de RSL. SQL de criação em `Back-end/sql/job_queue.sql`.
 - **Sistema de créditos**: Cada lead capturado consome 2 créditos. O backend expõe `GET /api/user/usage` para o frontend exibir leads restantes. Se o período (`proxima_renovacao`) expirar, os créditos são automaticamente renovados na próxima requisição. Ao confirmar pagamento via webhook MisticPay, os créditos do novo plano são creditados.
 - **Supabase Admin**: O backend usa `supabaseAdmin` (client com `SUPABASE_SERVICE_ROLE_KEY`) para operações na tabela `usuario`, bypassando RLS. Se a env var não existir, cai para anon key. 
 - **Debug**: `GET /api/debug/config` retorna o estado das chaves (sem expor valores).

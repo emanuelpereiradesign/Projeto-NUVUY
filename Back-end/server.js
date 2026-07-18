@@ -440,48 +440,46 @@ app.put('/api/user/password', async (req, res) => {
 });
 
 // Rota para criar tarefa e capturar/gerar leads salvando no banco de dados
+// ---------------------------------------------------------------------------
+// Fila de Jobs (job_queue) para captura assíncrona de leads
+// ---------------------------------------------------------------------------
+
+// Cria o job na fila e retorna imediatamente
 app.post('/api/tarefas', async (req, res) => {
-  console.log(`\n[${now()}] ===== NOVA CAPTURA ====`);
+  console.log(`\n[${now()}] ===== NOVA CAPTURA (async) ====`);
   console.log(`[${now()}] Body: nicho="${req.body.nicho}", regiao="${req.body.regiao}", qtd=${req.body.quantidade}, fontes=[${req.body.fontes}]`);
 
   if (!supabase) {
-    console.warn(`[${now()}] Supabase não inicializado`);
     return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
   }
 
   const token = getAuthToken(req);
   if (!token) {
-    console.warn(`[${now()}] Token não fornecido`);
     return res.status(401).json({ error: 'Não autorizado. Token de sessão não fornecido.' });
   }
 
   const { nicho, regiao, quantidade, fontes } = req.body;
   if (!nicho || !regiao || !quantidade || !fontes || !Array.isArray(fontes)) {
-    console.warn(`[${now()}] Campos obrigatórios faltando`);
     return res.status(400).json({ error: 'Nicho, região, quantidade e fontes são obrigatórios.' });
   }
-
-  console.log(`[${now()}] Iniciando captura: ${quantidade}x "${nicho}" em "${regiao}"`);
 
   try {
     const userClient = authedClient(token);
 
-    // 1. Autentica e obtém o usuário atual
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
       return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
     }
 
-    // 1b. Verifica créditos do usuário
     const usuario = await checkAndRenewCredits(userClient, user);
     if (!usuario) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
-    // 1c. Verifica regras do plano
     const planRules = getPlanRules(usuario.plano);
+    const leadsSolicitados = Math.min(parseInt(quantidade) || 1, planRules.max_leads_por_tarefa);
+    const creditosNecessarios = leadsSolicitados * 2;
 
-    // Limite de leads por tarefa
     if (parseInt(quantidade) > planRules.max_leads_por_tarefa) {
       return res.status(403).json({
         error: 'Limite do plano excedido',
@@ -489,7 +487,6 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    // Conta buscas do mês atual
     const searchesThisMonth = await countSearchesThisMonth(user.id);
     if (searchesThisMonth >= planRules.max_buscas_mes) {
       return res.status(403).json({
@@ -498,14 +495,6 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    // Filtra Instagram se o plano não permitir
-    if (!planRules.instagram && fontes.includes('instagram')) {
-      console.log(`[${now()}] Plano ${usuario.plano} não inclui Instagram. Removendo da busca.`);
-      // Avisa mas não bloqueia — apenas remove a fonte
-    }
-
-    const leadsSolicitados = Math.min(parseInt(quantidade) || 1, planRules.max_leads_por_tarefa);
-    const creditosNecessarios = leadsSolicitados * 2;
     if (usuario.creditos_restantes < creditosNecessarios) {
       return res.status(403).json({
         error: 'Créditos insuficientes',
@@ -515,189 +504,90 @@ app.post('/api/tarefas', async (req, res) => {
       });
     }
 
-    // 2. Garante que as fontes "Google Maps" e "Instagram" existam na tabela public.fonte
-    let mapsId = null;
-    let instaId = null;
-
-    const { data: fontesExistentes, error: errorFontes } = await userClient.from('fonte').select('*');
-    if (!errorFontes) {
-      const maps = fontesExistentes.find(f => f.nome === 'Google Maps');
-      if (maps) {
-        mapsId = maps.id;
-      } else {
-        const { data: newMaps } = await userClient.from('fonte').insert({ nome: 'Google Maps', tipo: 'Maps', ativo: true }).select('id').single();
-        if (newMaps) mapsId = newMaps.id;
-      }
-
-      const insta = fontesExistentes.find(f => f.nome === 'Instagram');
-      if (insta) {
-        instaId = insta.id;
-      } else {
-        const { data: newInsta } = await userClient.from('fonte').insert({ nome: 'Instagram', tipo: 'Instagram', ativo: true }).select('id').single();
-        if (newInsta) instaId = newInsta.id;
-      }
-    }
-
-    // 3. Cria o registro da tarefa
-    const { data: tarefa, error: errorTarefa } = await userClient
-      .from('tarefas')
-      .insert({
-        id_usuario: user.id,
-        termo_busca: nicho,
-        local: regiao,
-        status: 'completed' // Inserimos como finalizada, pois a simulação roda imediatamente
-      })
-      .select()
-      .single();
-
-    if (errorTarefa) throw errorTarefa;
-
-    // 4. Cria a associação da tarefa com as fontes selecionadas
+    // Filtra Instagram do array se o plano não permitir
     const effectiveFontes = [...fontes];
     if (!planRules.instagram && effectiveFontes.includes('instagram')) {
-      console.log(`[${now()}] Plano ${usuario.plano} não inclui Instagram. Ignorando fonte.`);
       const idx = effectiveFontes.indexOf('instagram');
       if (idx > -1) effectiveFontes.splice(idx, 1);
     }
 
-    if (effectiveFontes.includes('google-maps') && mapsId) {
-      await userClient.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: mapsId });
-    }
-    if (effectiveFontes.includes('instagram') && instaId) {
-      await userClient.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: instaId });
-    }
-
-    // 5. Executa a captação de leads via Web Scraper
-    console.log(`[${now()}] [2/5] Scraper: captando leads com fontes: [${effectiveFontes}]...`);
-    const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, effectiveFontes);
-    console.log(`[${now()}] [2/5] Scraper retornou ${leadsToProcess.length} leads`);
-
-    // Qualifica os leads utilizando a IA (OpenRouter) sequencialmente para evitar rate limit
-    const qualifiedLeads = [];
-    console.log(`[${now()}] [3/5] Classificando ${leadsToProcess.length} leads com IA...`);
-    for (let i = 0; i < leadsToProcess.length; i++) {
-      const leadData = leadsToProcess[i];
-      console.log(`[${now()}]   IA #${i+1}: "${leadData.name}"...`);
-      const aiEval = await evaluateLeadWithAI({
-        name: leadData.name,
-        category: nicho.toUpperCase(),
-        location: regiao,
-        rating: leadData.rating,
-        reviewsCount: leadData.mapsMetrics ? leadData.mapsMetrics.qtd_comentarios : 0,
-        imagesQuality: leadData.mapsMetrics && leadData.mapsMetrics.qualidade_imagens ? leadData.mapsMetrics.qualidade_imagens : 'Média',
-        website: leadData.website,
-        instagram: leadData.instagram,
-        followers: leadData.instaMetrics ? leadData.instaMetrics.qtd_seguidores : 0,
-        postsCount: leadData.instaMetrics ? leadData.instaMetrics.qtd_postagem : 0,
-        following: 0,
-        engagementRate: leadData.instaMetrics ? leadData.instaMetrics.taxa_engajamento : 0,
-        postsQuality: leadData.instaMetrics && leadData.instaMetrics.qualidade_postagem ? leadData.instaMetrics.qualidade_postagem : 'Média'
-      });
-      console.log(`[${now()}]   IA #${i+1}: ${leadData.name} → ${aiEval.pontuacao}pts (${aiEval.classificacao})`);
-      qualifiedLeads.push({ ...leadData, aiEval });
-    }
-    console.log(`[${now()}] [3/5] Classificação concluída: ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='quente').length} quente, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='morno').length} morno, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='frio').length} frio`);
-
-    const generatedLeads = [];
-
-    // Salva os leads qualificados no banco de dados
-    console.log(`[${now()}] [4/5] Salvando ${qualifiedLeads.length} leads no banco...`);
-    for (const lead of qualifiedLeads) {
-      const email = lead.email || '';
-      const phone = lead.phone || '';
-      const websiteValue = lead.website === 'Não possui' ? '' : lead.website;
-      const address = lead.address || `${regiao}, Brasil`;
-
-      // 5.1 Salva na tabela public.lead
-      const { data: leadRow, error: leadErr } = await userClient.from('lead').insert({
-        id_tarefas: tarefa.id,
-        nome: lead.name,
-        email: email,
-        telefone: phone,
-        website: websiteValue,
-        endereco: address,
-        categoria: nicho.toUpperCase()
-      }).select().single();
-
-      console.log(`[${now()}]   Salvo: "${lead.name}" (ID ${leadRow.id})`);
-      if (leadErr) throw leadErr;
-
-      // 5.2 Salva métricas de Google Maps se selecionada
-      let mapsMetricId = null;
-      if (lead.mapsMetrics) {
-        const { data: mapsMetric } = await userClient.from('metrica_google_maps').insert({
-          id_lead: leadRow.id,
-          qtd_comentarios: lead.mapsMetrics.qtd_comentarios,
-          nota_avaliacao: lead.mapsMetrics.nota_avaliacao,
-          qualidade_imagens: lead.mapsMetrics.qualidade_imagens
-        }).select().single();
-        if (mapsMetric) mapsMetricId = mapsMetric.id;
-      }
-
-      // 5.3 Salva métricas de Instagram se selecionada
-      let instaMetricId = null;
-      if (lead.instaMetrics) {
-        const { data: instaMetric } = await userClient.from('metrica_instagram').insert({
-          id_lead: leadRow.id,
-          qtd_seguidores: lead.instaMetrics.qtd_seguidores,
-          qtd_postagem: lead.instaMetrics.qtd_postagem,
-          taxa_engajamento: lead.instaMetrics.taxa_engajamento,
-          qualidade_postagem: lead.instaMetrics.qualidade_postagem,
-          nicho_atuacao: lead.instaMetrics.nicho_atuacao
-        }).select().single();
-        if (instaMetric) instaMetricId = instaMetric.id;
-      }
-
-      // 5.4 Salva pontuação (Score) do lead vinda da IA
-      await userClient.from('score').insert({
-        id_lead: leadRow.id,
-        id_mtc_instagram: instaMetricId,
-        id_mtc_mps: mapsMetricId,
-        pontuacao: lead.aiEval.pontuacao,
-        classificacao: lead.aiEval.classificacao,
-        justificativa_ia: lead.aiEval.justificativa_ia
-      });
-
-      generatedLeads.push({
-        id: leadRow.id,
-        title: lead.name,
-        percent: lead.aiEval.pontuacao,
-        type: lead.aiEval.classificacao,
-        category: nicho.toUpperCase(),
-        rating: lead.rating,
-        source: fontes.includes('google-maps') ? (fontes.includes('instagram') ? 'Google Maps + Instagram' : 'Google Maps') : 'Instagram',
-        phone: phone,
-        email: email,
-        website: websiteValue,
-        address: address,
-        instagram: lead.instagram,
-        date: new Date().toLocaleDateString('pt-BR'),
-        justificativa_ia: lead.aiEval.justificativa_ia,
-        mapsMetrics: lead.mapsMetrics,
-        instaMetrics: lead.instaMetrics
-      });
-    }
-
-    // 6. Deduz créditos do usuário
-    const leadsCapturados = generatedLeads.length;
-    const creditosGastos = leadsCapturados * 2;
-    await supabaseAdmin
-      .from('usuario')
-      .update({
-        creditos_restantes: usuario.creditos_restantes - creditosGastos,
-        creditos_utilizados: (usuario.creditos_utilizados || 0) + creditosGastos
+    // Insere o job na fila (status = pending)
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from('job_queue')
+      .insert({
+        user_id: user.id,
+        nicho,
+        regiao,
+        quantidade: leadsSolicitados,
+        fontes: effectiveFontes,
+        status: 'pending'
       })
-      .eq('id', user.id);
-    console.log(`[${now()}] [5/5] Captura concluída: ${leadsCapturados} leads retornados, ${creditosGastos} créditos deduzidos`);
+      .select()
+      .single();
+
+    if (jobErr) throw jobErr;
+
+    console.log(`[${now()}] Job enfileirado: ${job.id} para usuário ${user.id}`);
 
     res.status(201).json({
       success: true,
-      data: generatedLeads,
-      creditos_restantes: usuario.creditos_restantes - creditosGastos,
-      leads_restantes: Math.floor((usuario.creditos_restantes - creditosGastos) / 2)
+      job_id: job.id,
+      message: 'Captura iniciada. Acompanhe o progresso...'
     });
   } catch (error) {
-    console.error(`[${now()}] ERRO na captura: ${error.message}`);
+    console.error(`[${now()}] ERRO ao enfileirar job: ${error.message}`);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Polling de status do job
+app.get('/api/jobs/:id', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase não inicializado.' });
+
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+
+  try {
+    const userClient = authedClient(token);
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from('job_queue')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (jobErr || !job) return res.status(404).json({ error: 'Job não encontrado.' });
+
+    const response = {
+      success: true,
+      status: job.status,
+      job_id: job.id
+    };
+
+    if (job.status === 'completed') {
+      response.data = job.result;
+
+      // Busca saldo atualizado do usuário
+      const { data: usuario } = await supabaseAdmin
+        .from('usuario')
+        .select('creditos_restantes')
+        .eq('id', user.id)
+        .single();
+      if (usuario) {
+        response.creditos_restantes = usuario.creditos_restantes;
+        response.leads_restantes = Math.floor(usuario.creditos_restantes / 2);
+      }
+    }
+
+    if (job.status === 'failed') {
+      response.error = job.error_message;
+    }
+
+    res.json(response);
+  } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
@@ -1067,9 +957,251 @@ app.get('/api/check-payment/:customId', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Worker de fila — processa jobs pendentes um por vez
+// ---------------------------------------------------------------------------
+
+let workerRunning = false;
+
+const processNextJob = async () => {
+  if (workerRunning || !supabaseAdmin) return;
+  workerRunning = true;
+
+  try {
+    // Pega o job pendente mais antigo
+    const { data: jobs, error } = await supabaseAdmin
+      .from('job_queue')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (error) { console.error(`[${now()}] Worker: erro ao buscar jobs: ${error.message}`); return; }
+    if (!jobs || jobs.length === 0) return;
+
+    const job = jobs[0];
+    console.log(`\n[${now()}] Worker: processando job ${job.id} (${job.quantidade}x "${job.nicho}" / "${job.regiao}")`);
+
+    // Marca como processing
+    await supabaseAdmin
+      .from('job_queue')
+      .update({ status: 'processing', started_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', job.id);
+
+    const { nicho, regiao, quantidade, fontes } = job;
+
+    // 1. Busca dados do usuário para créditos
+    const { data: usuario } = await supabaseAdmin
+      .from('usuario')
+      .select('*')
+      .eq('id', job.user_id)
+      .single();
+
+    if (!usuario) {
+      await supabaseAdmin
+        .from('job_queue')
+        .update({ status: 'failed', error_message: 'Usuário não encontrado.', updated_at: new Date().toISOString(), completed_at: new Date().toISOString() })
+        .eq('id', job.id);
+      return;
+    }
+
+    // 2. Garante que as fontes existam na tabela public.fonte
+    let mapsId = null;
+    let instaId = null;
+
+    const { data: fontesExistentes } = await supabaseAdmin.from('fonte').select('*');
+    if (fontesExistentes) {
+      const maps = fontesExistentes.find(f => f.nome === 'Google Maps');
+      mapsId = maps ? maps.id : null;
+      if (!mapsId) {
+        const { data: newMaps } = await supabaseAdmin.from('fonte').insert({ nome: 'Google Maps', tipo: 'Maps', ativo: true }).select('id').single();
+        if (newMaps) mapsId = newMaps.id;
+      }
+      const insta = fontesExistentes.find(f => f.nome === 'Instagram');
+      instaId = insta ? insta.id : null;
+      if (!instaId) {
+        const { data: newInsta } = await supabaseAdmin.from('fonte').insert({ nome: 'Instagram', tipo: 'Instagram', ativo: true }).select('id').single();
+        if (newInsta) instaId = newInsta.id;
+      }
+    }
+
+    // 3. Cria o registro da tarefa
+    const { data: tarefa, error: tarefaErr } = await supabaseAdmin
+      .from('tarefas')
+      .insert({
+        id_usuario: job.user_id,
+        termo_busca: nicho,
+        local: regiao,
+        status: 'completed'
+      })
+      .select()
+      .single();
+
+    if (tarefaErr) throw tarefaErr;
+
+    // 4. Cria associação tarefa_fonte
+    if (fontes.includes('google-maps') && mapsId) {
+      await supabaseAdmin.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: mapsId });
+    }
+    if (fontes.includes('instagram') && instaId) {
+      await supabaseAdmin.from('tarefa_fonte').insert({ id_tarefa: tarefa.id, id_fonte: instaId });
+    }
+
+    // 5. Scraper
+    console.log(`[${now()}] Worker: [2/5] Scraper com fontes: [${fontes}]...`);
+    const leadsToProcess = await scrapeLeads(nicho, regiao, quantidade, fontes);
+    console.log(`[${now()}] Worker: Scraper retornou ${leadsToProcess.length} leads`);
+
+    // 6. Classificação com IA
+    const qualifiedLeads = [];
+    console.log(`[${now()}] Worker: [3/5] Classificando ${leadsToProcess.length} leads com IA...`);
+    for (let i = 0; i < leadsToProcess.length; i++) {
+      const leadData = leadsToProcess[i];
+      console.log(`[${now()}] Worker: IA #${i+1}: "${leadData.name}"...`);
+      const aiEval = await evaluateLeadWithAI({
+        name: leadData.name,
+        category: nicho.toUpperCase(),
+        location: regiao,
+        rating: leadData.rating,
+        reviewsCount: leadData.mapsMetrics ? leadData.mapsMetrics.qtd_comentarios : 0,
+        imagesQuality: leadData.mapsMetrics && leadData.mapsMetrics.qualidade_imagens ? leadData.mapsMetrics.qualidade_imagens : 'Média',
+        website: leadData.website,
+        instagram: leadData.instagram,
+        followers: leadData.instaMetrics ? leadData.instaMetrics.qtd_seguidores : 0,
+        postsCount: leadData.instaMetrics ? leadData.instaMetrics.qtd_postagem : 0,
+        following: 0,
+        engagementRate: leadData.instaMetrics ? leadData.instaMetrics.taxa_engajamento : 0,
+        postsQuality: leadData.instaMetrics && leadData.instaMetrics.qualidade_postagem ? leadData.instaMetrics.qualidade_postagem : 'Média'
+      });
+      console.log(`[${now()}] Worker: IA #${i+1}: ${leadData.name} → ${aiEval.pontuacao}pts (${aiEval.classificacao})`);
+      qualifiedLeads.push({ ...leadData, aiEval });
+    }
+    console.log(`[${now()}] Worker: Classificação: ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='quente').length} quente, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='morno').length} morno, ${qualifiedLeads.filter(l=>l.aiEval.classificacao==='frio').length} frio`);
+
+    // 7. Salva leads + métricas + scores
+    const generatedLeads = [];
+    console.log(`[${now()}] Worker: [4/5] Salvando ${qualifiedLeads.length} leads no banco...`);
+    for (const lead of qualifiedLeads) {
+      const email = lead.email || '';
+      const phone = lead.phone || '';
+      const websiteValue = lead.website === 'Não possui' ? '' : lead.website;
+      const address = lead.address || `${regiao}, Brasil`;
+
+      const { data: leadRow, error: leadErr } = await supabaseAdmin.from('lead').insert({
+        id_tarefas: tarefa.id,
+        nome: lead.name,
+        email,
+        telefone: phone,
+        website: websiteValue,
+        endereco: address,
+        categoria: nicho.toUpperCase()
+      }).select().single();
+      if (leadErr) throw leadErr;
+
+      let mapsMetricId = null;
+      if (lead.mapsMetrics) {
+        const { data: mapsMetric } = await supabaseAdmin.from('metrica_google_maps').insert({
+          id_lead: leadRow.id,
+          qtd_comentarios: lead.mapsMetrics.qtd_comentarios,
+          nota_avaliacao: lead.mapsMetrics.nota_avaliacao,
+          qualidade_imagens: lead.mapsMetrics.qualidade_imagens
+        }).select().single();
+        if (mapsMetric) mapsMetricId = mapsMetric.id;
+      }
+
+      let instaMetricId = null;
+      if (lead.instaMetrics) {
+        const { data: instaMetric } = await supabaseAdmin.from('metrica_instagram').insert({
+          id_lead: leadRow.id,
+          qtd_seguidores: lead.instaMetrics.qtd_seguidores,
+          qtd_postagem: lead.instaMetrics.qtd_postagem,
+          taxa_engajamento: lead.instaMetrics.taxa_engajamento,
+          qualidade_postagem: lead.instaMetrics.qualidade_postagem,
+          nicho_atuacao: lead.instaMetrics.nicho_atuacao
+        }).select().single();
+        if (instaMetric) instaMetricId = instaMetric.id;
+      }
+
+      await supabaseAdmin.from('score').insert({
+        id_lead: leadRow.id,
+        id_mtc_instagram: instaMetricId,
+        id_mtc_mps: mapsMetricId,
+        pontuacao: lead.aiEval.pontuacao,
+        classificacao: lead.aiEval.classificacao,
+        justificativa_ia: lead.aiEval.justificativa_ia
+      });
+
+      generatedLeads.push({
+        id: leadRow.id,
+        title: lead.name,
+        percent: lead.aiEval.pontuacao,
+        type: lead.aiEval.classificacao,
+        category: nicho.toUpperCase(),
+        rating: lead.rating,
+        source: fontes.includes('google-maps') ? (fontes.includes('instagram') ? 'Google Maps + Instagram' : 'Google Maps') : 'Instagram',
+        phone,
+        email,
+        website: websiteValue,
+        address,
+        instagram: lead.instagram,
+        date: new Date().toLocaleDateString('pt-BR'),
+        justificativa_ia: lead.aiEval.justificativa_ia,
+        mapsMetrics: lead.mapsMetrics,
+        instaMetrics: lead.instaMetrics
+      });
+    }
+
+    // 8. Deduz créditos
+    const leadsCapturados = generatedLeads.length;
+    const creditosGastos = leadsCapturados * 2;
+    await supabaseAdmin
+      .from('usuario')
+      .update({
+        creditos_restantes: usuario.creditos_restantes - creditosGastos,
+        creditos_utilizados: (usuario.creditos_utilizados || 0) + creditosGastos
+      })
+      .eq('id', job.user_id);
+
+    console.log(`[${now()}] Worker: [5/5] ${leadsCapturados} leads, ${creditosGastos} créditos deduzidos`);
+
+    // 9. Atualiza job como completed
+    await supabaseAdmin
+      .from('job_queue')
+      .update({
+        status: 'completed',
+        result: generatedLeads,
+        creditos_gastos: creditosGastos,
+        updated_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', job.id);
+
+    console.log(`[${now()}] Worker: Job ${job.id} concluído com sucesso`);
+  } catch (error) {
+    console.error(`[${now()}] Worker: ERRO no job ${job?.id}: ${error.message}`);
+    if (job?.id) {
+      await supabaseAdmin
+        .from('job_queue')
+        .update({
+          status: 'failed',
+          error_message: error.message,
+          updated_at: new Date().toISOString(),
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+    }
+  } finally {
+    workerRunning = false;
+  }
+};
+
 app.listen(port, () => {
   console.log(`[${now()}] ==============================`);
   console.log(`[${now()}]  Nuvuy Backend rodando na porta ${port}`);
   console.log(`[${now()}]  Supabase: ${supabase ? 'CONECTADO' : 'DESCONECTADO'}`);
   console.log(`[${now()}] ==============================`);
+
+  // Worker de fila a cada 3 segundos
+  setInterval(processNextJob, 3000);
+  console.log(`[${now()}] Worker de fila iniciado (polling a cada 3s)`);
 });

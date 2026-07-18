@@ -1050,34 +1050,31 @@ document.addEventListener('DOMContentLoaded', () => {
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      
+
       const nicho = document.getElementById('input-nicho').value.trim();
       const regiao = document.getElementById('input-regiao').value.trim();
       const quantidade = Math.max(1, Math.min(parseInt(document.getElementById('input-quantidade').value) || 1, planRules.max_leads_por_tarefa));
-      
+
       const activeSources = Array.from(document.querySelectorAll('.btn-source.active'))
         .map(btn => btn.textContent.trim());
-      
-      // Loading State in Button
+
+      // Loading State
       const submitBtn = document.getElementById('btn-submit-captura');
       const submitBtnText = submitBtn.querySelector('span');
       const submitBtnSvg = submitBtn.querySelector('svg');
-      
+
       submitBtn.classList.add('loading');
-      
-      // Replace SVG icon with spinner
+
       const originalSvg = submitBtnSvg ? submitBtnSvg.outerHTML : '';
-      submitBtn.innerHTML = `<span class="spinner"></span> <span>Efetuando captura...</span>`;
-      
-      // Disable inputs during processing
+      submitBtn.innerHTML = `<span class="spinner"></span> <span>Iniciando captura...</span>`;
+
       const inputs = form.querySelectorAll('.modal-input, .btn-source');
       inputs.forEach(input => input.setAttribute('disabled', 'true'));
       if (closeModalBtn) closeModalBtn.style.display = 'none';
-      
-      // Waiting toast after 4s (e.g. Render waking up)
+
       let waitingToastTimer = setTimeout(() => {
-        showToast('Estamos efetuando sua busca, aguarde apenas um momento...', 'info');
-      }, 4000);
+        showToast('Sua captura está sendo processada na fila. Acompanhe o progresso...', 'info');
+      }, 8000);
 
       const resetForm = () => {
         clearTimeout(waitingToastTimer);
@@ -1085,76 +1082,103 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.innerHTML = `${originalSvg} <span>Efetuar captura</span>`;
         inputs.forEach(input => input.removeAttribute('disabled'));
         if (closeModalBtn) closeModalBtn.style.display = 'flex';
-        form.reset();
         closeModal();
       };
 
-      let resData;
-
       const token = localStorage.getItem('nuvuy_access_token');
-      console.log('[DEBUG] Token encontrado?', !!token);
-      console.log('[DEBUG] BACKEND_API_URL:', window.BACKEND_API_URL);
       if (token) {
         try {
           const activeSourceTypes = Array.from(document.querySelectorAll('.btn-source.active'))
             .map(btn => btn.getAttribute('data-source'));
-          console.log('[DEBUG] Chamando API /api/tarefas...');
 
-          resData = await callBackend('/api/tarefas', 'POST', {
+          const resData = await callBackend('/api/tarefas', 'POST', {
             nicho,
             regiao,
             quantidade,
             fontes: activeSourceTypes
           }, token);
 
-          if (!resData) {
+          if (!resData || !resData.job_id) {
             resetForm();
             return;
           }
 
-          const leads = resData.data;
+          const jobId = resData.job_id;
+          submitBtn.innerHTML = `<span class="spinner"></span> <span>Capturando leads...</span>`;
 
-          if (!leads || leads.length === 0) {
-            showToast('Nenhum lead real encontrado para esta busca. Tente outro nicho ou região.', 'warning');
-            resetForm();
-            return;
-          }
+          // Polling de status
+          let pollCount = 0;
+          const pollInterval = setInterval(async () => {
+            pollCount++;
+            try {
+              const statusRes = await callBackend(`/api/jobs/${jobId}`, 'GET', null, token);
+              if (!statusRes) {
+                clearInterval(pollInterval);
+                resetForm();
+                return;
+              }
 
-          let countQuente = 0;
-          let countMorno = 0;
-          let countFrio = 0;
+              if (statusRes.status === 'completed') {
+                clearInterval(pollInterval);
+                clearTimeout(waitingToastTimer);
 
-          leads.forEach(lead => {
-            if (lead.type === 'quente') countQuente++;
-            if (lead.type === 'morno') countMorno++;
-            if (lead.type === 'frio') countFrio++;
-            
-            insertLeadCardIntoDOM(lead);
-          });
+                const leads = statusRes.data;
+                if (!leads || leads.length === 0) {
+                  showToast('Nenhum lead encontrado para esta busca.', 'warning');
+                  resetForm();
+                  return;
+                }
 
-          updateTotalStats(countQuente, countMorno, countFrio);
+                let countQuente = 0, countMorno = 0, countFrio = 0;
+                leads.forEach(lead => {
+                  if (lead.type === 'quente') countQuente++;
+                  if (lead.type === 'morno') countMorno++;
+                  if (lead.type === 'frio') countFrio++;
+                  insertLeadCardIntoDOM(lead);
+                });
 
-          if (typeof window.addLeadsToIntelligentPanel === 'function') {
-            window.addLeadsToIntelligentPanel(leads);
-          }
+                updateTotalStats(countQuente, countMorno, countFrio);
 
-          // Atualiza card de leads disponíveis
-          if (resData.creditos_restantes !== undefined) {
-            updateUsageAfterCapture(resData.creditos_restantes, resData.leads_restantes);
-          }
+                if (typeof window.addLeadsToIntelligentPanel === 'function') {
+                  window.addLeadsToIntelligentPanel(leads);
+                }
 
-          showToast(`${leads.length} leads reais capturados!`, 'success');
-          addNotification('Leads capturados', `${leads.length} novos leads para ${nicho} em ${regiao}`, 'success');
-          resetForm();
-          return;
+                if (statusRes.creditos_restantes !== undefined) {
+                  updateUsageAfterCapture(statusRes.creditos_restantes, statusRes.leads_restantes);
+                }
+
+                showToast(`${leads.length} leads reais capturados!`, 'success');
+                addNotification('Leads capturados', `${leads.length} novos leads para ${nicho} em ${regiao}`, 'success');
+                resetForm();
+              } else if (statusRes.status === 'failed') {
+                clearInterval(pollInterval);
+                clearTimeout(waitingToastTimer);
+                showToast(`Erro na captura: ${statusRes.error || 'Falha no processamento'}`, 'error');
+                resetForm();
+              }
+              // status === 'processing' ou 'pending': continua polando
+            } catch (pollErr) {
+              console.error('[Polling] Erro:', pollErr.message);
+              if (pollCount > 60) {
+                clearInterval(pollInterval);
+                clearTimeout(waitingToastTimer);
+                showToast('A captura está demorando mais que o esperado. Verifique seus leads em instantes.', 'warning');
+                resetForm();
+              }
+            }
+          }, 2500);
+
+          // Timeout máximo de 3 minutos (72 polls * 2.5s = 180s)
+          setTimeout(() => {
+            clearInterval(pollInterval);
+          }, 180000);
         } catch (err) {
+          clearTimeout(waitingToastTimer);
           console.error('[Captura] Erro:', err.message);
-          // Trata erro específico de créditos insuficientes
           if (err.message && err.message.includes('Créditos insuficientes')) {
             showToast('Créditos insuficientes! Faça um upgrade de plano para continuar captando.', 'error');
             addNotification('Créditos insuficientes', 'Seu plano atual não tem créditos suficientes. Faça um upgrade.', 'error');
             resetForm();
-            // Após fechar o toast, redireciona para planos
             setTimeout(() => {
               window.location.href = getPageUrl('planos');
             }, 3000);
@@ -1162,7 +1186,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           showToast(`Erro na captura: ${err.message}`, 'error');
           resetForm();
-          return;
         }
       } else {
         showToast('Sessão expirada. Faça login novamente.', 'error');
@@ -1170,7 +1193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('nuvuy_refresh_token');
         localStorage.removeItem('nuvuy_user_name');
         window.location.href = getPageUrl('login');
-        return;
       }
     });
   }
