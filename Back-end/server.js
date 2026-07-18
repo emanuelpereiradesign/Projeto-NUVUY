@@ -256,8 +256,21 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// Rota de debug: verifica config (só para admin)
-app.get('/api/debug/config', (req, res) => {
+// Rota de debug: verifica config (requer autenticação)
+app.get('/api/debug/config', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'Supabase não inicializado.' });
+
+  const token = getAuthToken(req);
+  if (!token) return res.status(401).json({ error: 'Não autorizado.' });
+
+  try {
+    const userClient = authedClient(token);
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) return res.status(401).json({ error: 'Sessão inválida.' });
+  } catch {
+    return res.status(401).json({ error: 'Sessão inválida.' });
+  }
+
   res.json({
     hasSupabaseUrl: !!process.env.SUPABASE_URL,
     hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
