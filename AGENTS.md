@@ -91,7 +91,7 @@ PROJETO-NUVUY/
 
 ## Banco de Dados (Supabase / PostgreSQL)
 - Veja `ESTRUTURA B.md` para schema ER completo.
-- Tabelas principais: `usuario`, `plano`, `tarefas`, `fonte`, `tarefa_fonte`, `lead`, `metrica_google_maps`, `metrica_instagram`, `score`.
+- Tabelas principais: `usuario`, `plano`, `tarefas`, `fonte`, `tarefa_fonte`, `lead`, `metrica_google_maps`, `metrica_instagram`, `score`, `job_queue`, `payment_transaction`.
 - **Trigger**: `on_auth_user_created` cria linha em `public.usuario` com plano gratuito no cadastro via Supabase Auth.
 - **RLS**: Todas as tabelas têm políticas de segurança restringindo linhas a `auth.uid()`. A tabela `usuario` é acessada via `supabaseAdmin` (service_role key) para bypass de RLS.
 

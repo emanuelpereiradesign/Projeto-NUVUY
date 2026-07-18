@@ -82,6 +82,34 @@
 * Justificativa_IA
 * *Constraint: classificação deve corresponder à faixa de pontuação (71-100 = quente, 41-70 = morno, 0-40 = frio)*
 
+### 🔄 `job_queue`
+* **ID** *(PK - uuid, default gen_random_uuid())*
+* User_id *(uuid, ref: auth.users)*
+* Nicho *(text)*
+* Regiao *(text)*
+* Quantidade *(integer)*
+* Fontes *(jsonb)*
+* Status *(text: pending, processing, completed, failed)*
+* Result *(jsonb — leads gerados)*
+* Creditos_gastos *(integer)*
+* Error_message *(text)*
+* Created_at *(timestamptz)*
+* Updated_at *(timestamptz)*
+* Started_at *(timestamptz)*
+* Completed_at *(timestamptz)*
+
+### 💰 `payment_transaction`
+* **ID** *(PK - uuid, default gen_random_uuid())*
+* User_id *(uuid, ref: auth.users)*
+* Plan_name *(text)*
+* Price *(numeric)*
+* Misticpay_transaction_id *(text)*
+* Custom_id *(text)*
+* Status *(text: PENDENTE, COMPLETO, EXPIRADO, CANCELADO)*
+* Created_at *(timestamptz)*
+* Updated_at *(timestamptz)*
+* Completed_at *(timestamptz)*
+
 ---
 
 ## 2. Relacionamentos
@@ -113,6 +141,12 @@
 * **Avalia (Instagram -> Score):** `Metrica_instagram` **(1) <-> (0..1)** `Score`
   * *As métricas do Instagram são utilizadas para gerar a avaliação do Score.*
 
+* **Enfileira:** `usuario` **(1) <-> (N)** `job_queue`
+  * *Um usuário pode ter vários jobs na fila de captura.*
+
+* **Solicita:** `usuario` **(1) <-> (N)** `payment_transaction`
+  * *Um usuário pode solicitar várias transações de pagamento.*
+
 ---
 
 ## 3. Observações de Implementação
@@ -125,6 +159,10 @@
 
 4. **Score - validação cruzada:** A tabela `score` possui uma constraint que garante que a `classificacao` corresponda exatamente à faixa da `pontuacao`: `quente` (71-100), `morno` (41-70), `frio` (0-40).
 
-5. **RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança garantindo que cada usuário veja e manipule apenas seus próprios dados. As políticas utilizam `auth.uid()` e joins para verificar a propriedade através da cadeia `usuario -> tarefas -> lead`. A tabela `usuario` é acessada pelo backend via `supabaseAdmin` (service_role key) para operações de crédito, bypassando RLS.
+5. **RLS (Row Level Security):** Todas as tabelas possuem políticas de segurança garantindo que cada usuário veja e manipule apenas seus próprios dados. As políticas utilizam `auth.uid()`. As tabelas `usuario` e `payment_transaction` são acessadas pelo backend via `supabaseAdmin` (service_role key) para operações de crédito e webhook, bypassando RLS.
 
 6. **Erro de digitação:** O relacionamento entre `Tarefas` e `Lead` estava grafado como "Captuira" no diagrama original. Na implementação utiliza-se "Captura".
+
+7. **`job_queue`:** Tabela de fila para captura assíncrona de leads. O worker do backend (processNextJob) consulta jobs com status `pending`, processa scraping + IA, e atualiza para `completed` ou `failed`. O frontend faz polling em `GET /api/jobs/:id` até o job ser concluído.
+
+8. **`payment_transaction`:** Substitui o antigo `paymentMap` em memória. Toda solicitação de PIX gera um registro com status `PENDENTE`. O webhook da MisticPay localiza a transação pelo `misticpay_transaction_id` e atualiza para `COMPLETO`. Persistente mesmo após restart do servidor.
