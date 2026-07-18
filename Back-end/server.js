@@ -20,7 +20,18 @@ const now = () => new Date().toLocaleTimeString('pt-BR');
 const frontEndPath = path.join(__dirname, '..', 'Front-end');
 
 // Segurança: Helmet (headers HTTP seguros)
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "cdn.jsdelivr.net", "fonts.googleapis.com", "unpkg.com"],
+      'style-src': ["'self'", "'unsafe-inline'", "fonts.googleapis.com", "cdn.jsdelivr.net"],
+      'font-src': ["'self'", "fonts.gstatic.com", "cdn.jsdelivr.net"],
+      'img-src': ["'self'", "data:", "https:"],
+      'connect-src': ["'self'", "https://*.supabase.co", "https://api.misticpay.com", "https://api.openai.com", "https://openrouter.ai/api"]
+    }
+  }
+}));
 
 // Configuração de CORS (apenas origens permitidas)
 const allowedOrigins = [
