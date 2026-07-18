@@ -339,9 +339,25 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
   }
 
-  const { name, email, password } = req.body;
+  let { name, email, password } = req.body;
+  name = (name || '').trim();
+  email = (email || '').trim().toLowerCase();
+  password = password || '';
+
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+  }
+  if (name.length < 2) {
+    return res.status(400).json({ error: 'Nome deve ter pelo menos 2 caracteres.' });
+  }
+  if (name.length > 100) {
+    return res.status(400).json({ error: 'Nome muito longo (máx. 100 caracteres).' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Formato de email inválido.' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres.' });
   }
 
   try {
@@ -369,9 +385,15 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(500).json({ error: 'Supabase não inicializado no Back-end.' });
   }
 
-  const { email, password } = req.body;
+  let { email, password } = req.body;
+  email = (email || '').trim().toLowerCase();
+  password = password || '';
+
   if (!email || !password) {
     return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Formato de email inválido.' });
   }
 
   try {
@@ -462,6 +484,9 @@ app.put('/api/user/password', async (req, res) => {
   if (!password) {
     return res.status(400).json({ error: 'A nova senha é obrigatória.' });
   }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.' });
+  }
 
   try {
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -502,8 +527,12 @@ app.post('/api/tarefas', async (req, res) => {
     return res.status(401).json({ error: 'Não autorizado. Token de sessão não fornecido.' });
   }
 
-  const { nicho, regiao, quantidade, fontes } = req.body;
-  if (!nicho || !regiao || !quantidade || !fontes || !Array.isArray(fontes)) {
+  let { nicho, regiao, quantidade, fontes } = req.body;
+  nicho = (nicho || '').trim().slice(0, 100);
+  regiao = (regiao || '').trim().slice(0, 100);
+  quantidade = parseInt(quantidade) || 1;
+
+  if (!nicho || !regiao || !fontes || !Array.isArray(fontes)) {
     return res.status(400).json({ error: 'Nicho, região, quantidade e fontes são obrigatórios.' });
   }
 
