@@ -828,9 +828,6 @@ const MISTICPAY_API_URL = 'https://api.misticpay.com';
 const misticpayCi = process.env.MISTICPAY_CI;
 const misticpayCs = process.env.MISTICPAY_CS;
 
-/** Mapa em memória: chave = misticpayTransactionId, valor = { userId, planName, status } */
-const paymentMap = new Map();
-
 // Rota: Criar preferência de pagamento (gera QR Code PIX)
 app.post('/api/create-preference', async (req, res) => {
   try {
@@ -868,8 +865,15 @@ app.post('/api/create-preference', async (req, res) => {
     if (!response.ok) throw new Error(data.message || data.error || `Erro MisticPay (${response.status})`);
 
     const misticpayId = String(data.data?.transactionId || '');
-    if (misticpayId) {
-      paymentMap.set(misticpayId, { userId, planName, customId, status: 'PENDENTE' });
+    if (misticpayId && supabaseAdmin) {
+      await supabaseAdmin.from('payment_transaction').insert({
+        user_id: userId,
+        plan_name: planName,
+        price: parseFloat(price),
+        misticpay_transaction_id: misticpayId,
+        custom_id: customId,
+        status: 'PENDENTE'
+      });
     }
 
     res.json({
@@ -885,7 +889,6 @@ app.post('/api/create-preference', async (req, res) => {
     res.status(500).json(safeError(error));
   }
 });
-
 // Rota: Webhook para confirmar pagamento
 app.post('/api/webhook/misticpay', async (req, res) => {
   try {
@@ -896,30 +899,36 @@ app.post('/api/webhook/misticpay', async (req, res) => {
       return res.status(400).json({ error: 'transactionId é obrigatório' });
     }
 
-    // Verifica se a transação existe no mapa de pagamentos pendentes
-    const payment = paymentMap.get(misticpayId);
-    if (!payment) {
-      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} não encontrado no mapa de pagamentos`);
+    // Busca a transação no banco
+    const { data: tx, error: txErr } = await supabaseAdmin
+      .from('payment_transaction')
+      .select('*')
+      .eq('misticpay_transaction_id', misticpayId)
+      .single();
+
+    if (txErr || !tx) {
+      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} não encontrado no banco`);
       return res.status(401).json({ error: 'Transação não reconhecida' });
     }
 
-    if (payment.status !== 'PENDENTE') {
-      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} já processado (${payment.status})`);
+    if (tx.status !== 'PENDENTE') {
+      console.warn(`[${now()}] Webhook rejeitado: transactionId ${misticpayId} já processado (${tx.status})`);
       return res.status(409).json({ error: 'Transação já processada' });
     }
+
     console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
 
     if (payload.transactionType === 'DEPOSITO' && payload.status === 'COMPLETO') {
-      payment.status = 'COMPLETO';
-      console.log(`[${now()}] Pagamento confirmado: userId=${payment.userId}, plan=${payment.planName}`);
+      console.log(`[${now()}] Pagamento confirmado: userId=${tx.user_id}, plan=${tx.plan_name}`);
 
       if (supabase) {
-        const planName = payment.planName.toLowerCase();
+        const planName = tx.plan_name.toLowerCase();
         const creditos = PLAN_CREDITS[planName] || 100;
         const agora = new Date().toISOString();
         const renovacao = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        const { error } = await supabaseAdmin
+        // Atualiza plano do usuário
+        await supabaseAdmin
           .from('usuario')
           .update({
             plano: planName,
@@ -928,8 +937,13 @@ app.post('/api/webhook/misticpay', async (req, res) => {
             periodo_inicio: agora,
             proxima_renovacao: renovacao
           })
-          .eq('id', payment.userId);
-        if (error) console.error(`[${now()}] Erro ao atualizar plano no Supabase:`, error.message);
+          .eq('id', tx.user_id);
+
+        // Marca transação como completa
+        await supabaseAdmin
+          .from('payment_transaction')
+          .update({ status: 'COMPLETO', updated_at: agora, completed_at: agora })
+          .eq('id', tx.id);
       }
     } else {
       console.log(`[${now()}] Webhook ignorado: type=${payload.transactionType}, status=${payload.status}`);
@@ -947,13 +961,22 @@ app.get('/api/check-payment/:customId', async (req, res) => {
   try {
     const { customId } = req.params;
 
-    for (const [misticpayId, payment] of paymentMap.entries()) {
-      if (payment.customId === customId) {
-        return res.json({ status: payment.status, planName: payment.planName });
+    // Busca no banco pela primeira transação com esse customId
+    if (supabaseAdmin) {
+      const { data: tx } = await supabaseAdmin
+        .from('payment_transaction')
+        .select('status, plan_name')
+        .eq('custom_id', customId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (tx) {
+        return res.json({ status: tx.status, planName: tx.plan_name });
       }
     }
 
-    // Se não achou no mapa, tenta checar na MisticPay
+    // Se não achou no banco, tenta checar na MisticPay
     const numericId = customId.split('_').pop();
     const checkResponse = await fetch(`${MISTICPAY_API_URL}/api/transactions/check`, {
       method: 'POST',
