@@ -201,7 +201,11 @@ const checkAndRenewCredits = async (userClient, user) => {
   return usuario;
 };
 
-
+// Retorna erro amigável ao cliente (nunca expõe detalhes internos)
+const safeError = (err) => {
+  console.error(`[${now()}] Erro interno:`, err?.message || err);
+  return { error: 'Ocorreu um erro interno. Tente novamente.' };
+};
 
 // Rota de status do Back-end
 app.get('/api/status', (req, res) => {
@@ -256,7 +260,7 @@ app.get('/api/user/usage', async (req, res) => {
       proxima_renovacao: usuario.proxima_renovacao
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -285,7 +289,7 @@ app.get('/api/user/plan-rules', async (req, res) => {
       searches_this_month: searchesThisMonth
     });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -315,7 +319,7 @@ app.post('/api/auth/signup', async (req, res) => {
     if (error) throw error;
     res.status(201).json({ success: true, data });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -339,7 +343,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -362,7 +366,7 @@ app.post('/api/auth/recover', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -399,7 +403,7 @@ app.put('/api/user/profile', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -435,7 +439,7 @@ app.put('/api/user/password', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, data });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -536,7 +540,7 @@ app.post('/api/tarefas', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${now()}] ERRO ao enfileirar job: ${error.message}`);
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -588,7 +592,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -711,7 +715,7 @@ app.get('/api/leads', async (req, res) => {
 
     res.json({ success: true, data: formattedLeads });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -789,7 +793,7 @@ app.delete('/api/leads', async (req, res) => {
       res.json({ success: true, message: 'Todos os leads foram deletados com sucesso.' });
     }
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -815,7 +819,7 @@ app.post('/api/auth/logout', async (req, res) => {
     await userClient.auth.signOut();
     res.json({ success: true });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json(safeError(error));
   }
 });
 
@@ -823,6 +827,7 @@ app.post('/api/auth/logout', async (req, res) => {
 const MISTICPAY_API_URL = 'https://api.misticpay.com';
 const misticpayCi = process.env.MISTICPAY_CI;
 const misticpayCs = process.env.MISTICPAY_CS;
+const misticpayWebhookSecret = process.env.MISTICPAY_WEBHOOK_SECRET;
 
 /** Mapa em memória: chave = misticpayTransactionId, valor = { userId, planName, status } */
 const paymentMap = new Map();
@@ -878,13 +883,24 @@ app.post('/api/create-preference', async (req, res) => {
     });
   } catch (error) {
     console.error(`[${now()}] Erro MisticPay: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    res.status(500).json(safeError(error));
   }
 });
 
 // Rota: Webhook para confirmar pagamento
 app.post('/api/webhook/misticpay', async (req, res) => {
   try {
+    // Verifica autenticação do webhook
+    const receivedSecret = req.headers['x-webhook-secret'];
+    if (misticpayWebhookSecret && misticpayWebhookSecret !== 'SEU_WEBHOOK_SECRET_AQUI') {
+      if (!receivedSecret || receivedSecret !== misticpayWebhookSecret) {
+        console.warn(`[${now()}] Webhook rejeitado: x-webhook-secret inválido`);
+        return res.status(401).json({ error: 'Assinatura inválida' });
+      }
+    } else {
+      console.warn(`[${now()}] Aviso: MISTICPAY_WEBHOOK_SECRET não configurado. Webhook sem autenticação!`);
+    }
+
     const payload = req.body;
     console.log(`[${now()}] Webhook MisticPay recebido:`, JSON.stringify(payload));
 
@@ -1184,7 +1200,7 @@ const processNextJob = async () => {
         .from('job_queue')
         .update({
           status: 'failed',
-          error_message: error.message,
+          error_message: 'Falha no processamento da captura.',
           updated_at: new Date().toISOString(),
           completed_at: new Date().toISOString()
         })

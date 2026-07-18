@@ -1447,8 +1447,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return `<div class="notification-item">
         <div class="notification-item-icon ${n.iconType}">${iconSvg}</div>
         <div class="notification-item-text">
-          <div class="notification-item-title">${n.title}</div>
-          ${n.desc ? `<div class="notification-item-desc">${n.desc}</div>` : ''}
+          <div class="notification-item-title">${escapeHtml(n.title)}</div>
+          ${n.desc ? `<div class="notification-item-desc">${escapeHtml(n.desc)}</div>` : ''}
         </div>
         <div class="notification-item-time">${n.time}</div>
       </div>`;
@@ -1534,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     toast.innerHTML = `
       ${iconHTML}
-      <span class="toast-message">${message}</span>
+      <span class="toast-message">${escapeHtml(message)}</span>
       <button class="toast-close" aria-label="Fechar">&times;</button>
       <div class="toast-progress"></div>
     `;
