@@ -1460,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Armazena regras do plano para uso no modal de captura
-  let planRules = { max_leads_por_tarefa: 5, max_buscas_mes: 10, instagram: false };
+  let planRules = { max_leads_por_tarefa: 5, instagram: false };
 
   async function fetchPlanRules() {
     const backendActive = await isBackendActive();

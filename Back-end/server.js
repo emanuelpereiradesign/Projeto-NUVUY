@@ -122,27 +122,14 @@ const PLAN_CREDITS = {
 
 // Map: nome do plano → regras de negócio
 const PLAN_RULES = {
-  gratuito: { max_leads_por_tarefa: 5, max_buscas_mes: 10, instagram: false },
-  básico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
-  basico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
-  pro:     { max_leads_por_tarefa: 20, max_buscas_mes: 60, instagram: true },
-  business:{ max_leads_por_tarefa: 30, max_buscas_mes: 100, instagram: true }
+  gratuito: { max_leads_por_tarefa: 5, instagram: false },
+  básico:  { max_leads_por_tarefa: 10, instagram: true },
+  basico:  { max_leads_por_tarefa: 10, instagram: true },
+  pro:     { max_leads_por_tarefa: 20, instagram: true },
+  business:{ max_leads_por_tarefa: 30, instagram: true }
 };
 
 const getPlanRules = (plano) => PLAN_RULES[plano?.toLowerCase()] || PLAN_RULES.gratuito;
-
-const countSearchesThisMonth = async (userId) => {
-  if (!supabaseAdmin) return 0;
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const { count, error } = await supabaseAdmin
-    .from('tarefas')
-    .select('id', { count: 'exact', head: true })
-    .eq('id_usuario', userId)
-    .gte('data', startOfMonth);
-  if (error) return 0;
-  return count || 0;
-};
 
 // Auxiliar para extrair o JWT do cabeçalho de Autorização (Bearer Token)
 const getAuthToken = (req) => {
@@ -341,13 +328,11 @@ app.get('/api/user/plan-rules', async (req, res) => {
     if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
     const rules = getPlanRules(usuario.plano);
-    const searchesThisMonth = await countSearchesThisMonth(user.id);
 
     res.json({
       success: true,
       plan: usuario.plano,
-      rules,
-      searches_this_month: searchesThisMonth
+      rules
     });
   } catch (error) {
     res.status(400).json(safeError(error));
@@ -578,14 +563,6 @@ app.post('/api/tarefas', async (req, res) => {
       return res.status(403).json({
         error: 'Limite do plano excedido',
         message: `Seu plano ${usuario.plano} permite no máximo ${planRules.max_leads_por_tarefa} leads por tarefa.`
-      });
-    }
-
-    const searchesThisMonth = await countSearchesThisMonth(user.id);
-    if (searchesThisMonth >= planRules.max_buscas_mes) {
-      return res.status(403).json({
-        error: 'Limite de buscas mensais excedido',
-        message: `Seu plano ${usuario.plano} permite apenas ${planRules.max_buscas_mes} buscas por mês. Faça um upgrade.`
       });
     }
 
