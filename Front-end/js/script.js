@@ -739,17 +739,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Search Input Handler
+  // Search Input Handler — filtra leads em tempo real
   const searchInput = document.querySelector('.search-bar input');
   if (searchInput) {
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const query = searchInput.value.trim();
-        if (query) {
-          console.log('Searching for leads:', query);
-          showToast(`Buscando por: "${query}"`, 'info');
-        }
-      }
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim().toLowerCase();
+      document.querySelectorAll('.lead-card').forEach(card => {
+        const text = (card.textContent || '').toLowerCase();
+        card.style.display = !query || text.includes(query) ? '' : 'none';
+      });
     });
   }
 
