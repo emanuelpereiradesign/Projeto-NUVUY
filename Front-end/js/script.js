@@ -2624,13 +2624,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
-      // Export as PDF
+      // Export as PDF (only for paid plans)
       const btnExportPdf = document.getElementById('export-pdf');
       if (btnExportPdf) {
-        btnExportPdf.addEventListener('click', () => {
-          exportDropdown.style.display = 'none';
-          exportLeadsToPDF();
-        });
+        const userPlan = (localStorage.getItem('nuvuy_user_plan') || 'gratuito').toLowerCase();
+        if (userPlan === 'gratuito' || userPlan === 'free') {
+          btnExportPdf.style.display = 'none';
+        } else {
+          btnExportPdf.addEventListener('click', () => {
+            exportDropdown.style.display = 'none';
+            exportLeadsToPDF();
+          });
+        }
       }
 
       // Export as CSV
