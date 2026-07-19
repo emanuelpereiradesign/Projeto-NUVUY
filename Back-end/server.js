@@ -122,7 +122,7 @@ const PLAN_CREDITS = {
 
 // Map: nome do plano → regras de negócio
 const PLAN_RULES = {
-  gratuito: { max_leads_por_tarefa: 10, max_buscas_mes: 5, instagram: false },
+  gratuito: { max_leads_por_tarefa: 5, max_buscas_mes: 10, instagram: false },
   básico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
   basico:  { max_leads_por_tarefa: 10, max_buscas_mes: 20, instagram: true },
   pro:     { max_leads_por_tarefa: 20, max_buscas_mes: 60, instagram: true },
@@ -223,8 +223,16 @@ const checkAndRenewCredits = async (userClient, user) => {
 
   const agora = new Date();
   const renovacao = usuario.proxima_renovacao ? new Date(usuario.proxima_renovacao) : null;
+  const renovVal = new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  if (!renovacao || agora >= renovacao) {
+  if (!renovacao) {
+    // Sem data de renovação: define uma futura sem resetar créditos
+    await supabaseAdmin
+      .from('usuario')
+      .update({ proxima_renovacao: renovVal })
+      .eq('id', user.id);
+    usuario.proxima_renovacao = renovVal;
+  } else if (agora >= renovacao) {
     const creditos = PLAN_CREDITS[usuario.plano?.toLowerCase()] || 100;
     await supabaseAdmin
       .from('usuario')
@@ -232,7 +240,7 @@ const checkAndRenewCredits = async (userClient, user) => {
         creditos_restantes: creditos,
         creditos_utilizados: 0,
         periodo_inicio: agora.toISOString(),
-        proxima_renovacao: new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        proxima_renovacao: renovVal
       })
       .eq('id', user.id);
     return { ...usuario, creditos_restantes: creditos, creditos_utilizados: 0 };

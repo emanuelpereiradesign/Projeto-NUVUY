@@ -679,6 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   fetchUsageInfo();
+  fetchPlanRules();
 
   const navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(item => {
@@ -968,6 +969,14 @@ document.addEventListener('DOMContentLoaded', () => {
             instagramBtn.classList.remove('btn-source-locked');
           }
         }
+
+        // Reset stepper to 1 and apply plan max
+        const qtdEl = document.getElementById('input-quantidade');
+        if (qtdEl) {
+          qtdEl.max = planRules.max_leads_por_tarefa;
+          qtdEl.placeholder = `Máx: ${planRules.max_leads_por_tarefa}`;
+        }
+        resetStepper();
       });
     });
   }
@@ -988,6 +997,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.remove('active');
           }
         });
+        resetStepper();
       }
     }
   };
@@ -1030,6 +1040,46 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.toggle('active');
     });
   });
+
+  // --- Stepper (quantidade de leads) ---
+  const qtdInput = document.getElementById('input-quantidade');
+  const minusBtn = document.getElementById('btn-qtd-minus');
+  const plusBtn = document.getElementById('btn-qtd-plus');
+
+  const updateStepperButtons = () => {
+    if (!qtdInput || !minusBtn || !plusBtn) return;
+    const val = parseInt(qtdInput.value) || 1;
+    const max = parseInt(qtdInput.max) || 10;
+    minusBtn.disabled = val <= 1;
+    plusBtn.disabled = val >= max;
+  };
+
+  const resetStepper = () => {
+    if (!qtdInput) return;
+    qtdInput.value = 1;
+    updateStepperButtons();
+  };
+
+  if (minusBtn && qtdInput) {
+    minusBtn.addEventListener('click', () => {
+      let val = parseInt(qtdInput.value) || 1;
+      if (val > 1) {
+        qtdInput.value = val - 1;
+        updateStepperButtons();
+      }
+    });
+  }
+
+  if (plusBtn && qtdInput) {
+    plusBtn.addEventListener('click', () => {
+      let val = parseInt(qtdInput.value) || 1;
+      const max = parseInt(qtdInput.max) || 10;
+      if (val < max) {
+        qtdInput.value = val + 1;
+        updateStepperButtons();
+      }
+    });
+  }
 
   // Upgrade modal logic (Instagram locked for free plan)
   const upgradeModal = document.getElementById('modal-upgrade');
@@ -1405,44 +1455,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Atualiza o anel após uma captura
   const updateUsageAfterCapture = (creditosRestantes, leadsRestantes) => {
-    fetchUsageInfo();
+  fetchUsageInfo();
+  fetchPlanRules();
   };
 
   // Armazena regras do plano para uso no modal de captura
-  let planRules = { max_leads_por_tarefa: 10, max_buscas_mes: 5, instagram: false };
+  let planRules = { max_leads_por_tarefa: 5, max_buscas_mes: 10, instagram: false };
 
   async function fetchPlanRules() {
     const backendActive = await isBackendActive();
     const token = localStorage.getItem('nuvuy_access_token');
-    if (!backendActive || !token) return;
-
-    try {
-      const res = await callBackend('/api/user/plan-rules', 'GET', null, token);
-      if (res && res.success) {
-        planRules = res.rules;
-
-        // Atualiza input quantidade
-        const qtdInput = document.getElementById('input-quantidade');
-        if (qtdInput) {
-          qtdInput.max = planRules.max_leads_por_tarefa;
-          qtdInput.placeholder = `Máx: ${planRules.max_leads_por_tarefa}`;
+    if (backendActive && token) {
+      try {
+        const res = await callBackend('/api/user/plan-rules', 'GET', null, token);
+        if (res && res.success) {
+          planRules = res.rules;
         }
-
-        // Atualiza botão Instagram
-        const instaBtn = document.querySelector('.btn-source[data-source="instagram"]');
-        if (instaBtn) {
-          if (planRules.instagram) {
-            instaBtn.disabled = false;
-            instaBtn.title = '';
-          } else {
-            instaBtn.disabled = true;
-            instaBtn.title = 'Disponível nos planos Básico+';
-            instaBtn.classList.remove('active');
-          }
-        }
+      } catch (err) {
+        console.error('Erro ao buscar regras do plano:', err);
       }
-    } catch (err) {
-      console.error('Erro ao buscar regras do plano:', err);
+    }
+
+    // Aplica regras (fallback ou do backend) ao input
+    const qtdInput = document.getElementById('input-quantidade');
+    if (qtdInput) {
+      qtdInput.max = planRules.max_leads_por_tarefa;
+      qtdInput.placeholder = `Máx: ${planRules.max_leads_por_tarefa}`;
+      if (parseInt(qtdInput.value) > planRules.max_leads_por_tarefa) {
+        qtdInput.value = planRules.max_leads_por_tarefa;
+      }
+      updateStepperButtons();
+    }
+
+    // Atualiza botão Instagram
+    const instaBtn = document.querySelector('.btn-source[data-source="instagram"]');
+    if (instaBtn) {
+      if (planRules.instagram) {
+        instaBtn.disabled = false;
+        instaBtn.title = '';
+      } else {
+        instaBtn.disabled = true;
+        instaBtn.title = 'Disponível nos planos Básico+';
+        instaBtn.classList.remove('active');
+      }
     }
   }
 

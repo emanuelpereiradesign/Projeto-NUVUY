@@ -254,8 +254,12 @@
             <input type="text" id="input-regiao" class="modal-input" placeholder="Exemplo: SÃO PAULO/SP" required autocomplete="off">
           </div>
           <div class="modal-form-group">
-            <label for="input-quantidade">QUANTIDADE DE LEAS</label>
-            <input type="number" id="input-quantidade" class="modal-input" placeholder="Exemplo: 10" min="1" max="10" required autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,2);if(parseInt(this.value)>10)this.value='10';if(parseInt(this.value)<1)this.value='';">
+            <label for="input-quantidade">QUANTIDADE DE LEADS</label>
+            <div class="stepper-wrapper">
+              <button type="button" class="stepper-btn" id="btn-qtd-minus" aria-label="Diminuir">−</button>
+              <input type="number" id="input-quantidade" class="modal-input stepper-input" value="1" min="1" max="10" readonly>
+              <button type="button" class="stepper-btn" id="btn-qtd-plus" aria-label="Aumentar">+</button>
+            </div>
           </div>
         </div>
 
